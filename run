@@ -1,5 +1,9 @@
 #!/bin/bash
 
+cd /opt/atol
+
 port=`dmesg | grep ATOL | grep USB | cut -d "]" -f 2 | cut -d ":" -f 1 | cut -d "b" -f 2 | tail -n 1`
 
-./driver.py $port 1>/dev/null 2>/dev/null
+if [ "$port" != "" ]; then
+    ./driver.py $port 1>/dev/null 2>/dev/null
+fi

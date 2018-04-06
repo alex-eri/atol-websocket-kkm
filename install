@@ -1,0 +1,13 @@
+#!/bin/bash
+
+ln -sf /opt/atol-websocket-kkm /opt/atol
+
+apt-get -y purge modemmanager
+
+cp service /etc/systemd/system/atol-kkm.service
+
+systemctl daemon-reload
+systemctl enable atol-kkm
+systemctl start atol-kkm
+
+systemctl -l status atol-kkm
