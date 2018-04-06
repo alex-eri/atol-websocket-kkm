@@ -1,0 +1,8 @@
+#!/bin/bash
+
+service atol-kkm stop
+
+git pull
+
+service atol-kkm start
+
