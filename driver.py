@@ -147,9 +147,6 @@ def simpleCheck(data):
         # Регистрация позиции
         driver.Registration()
         errorCheck()
-    driver.CancelCheck()
-    errorCheck()
-    return 99
     # Прием оплаты
     # Тип оплаты
     driver.put_TypeClose(data['type'])

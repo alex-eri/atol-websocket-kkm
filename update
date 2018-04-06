@@ -1,5 +1,7 @@
 #!/bin/bash
 
+cd /opt/atol
+
 service atol-kkm stop
 
 git pull
