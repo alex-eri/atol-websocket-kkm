@@ -6,3 +6,4 @@ git pull
 
 service atol-kkm start
 
+systemctl -l status atol-kkm
