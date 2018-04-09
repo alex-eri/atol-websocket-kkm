@@ -15,6 +15,29 @@ driver = dto9fptr.Fptr(r'./fptr/libfptr.so', 15)
 class EFptrException(Exception):
     pass
 
+def errorCheck():
+    result_code = driver.get_ResultCode()
+    result_description = driver.get_ResultDescription()
+    if result_code != 0:
+        raise EFptrException(result_description)
+
+def setTableIntValue(table, row, field, value):
+    driver.put_Table(table)
+    driver.put_Row(row)
+    driver.put_Field(field)
+    driver.put_FieldType(0)
+    driver.put_Caption(value)
+    driver.SetTableField()
+    errorCheck()
+
+def setFiscalStringProperty(property, value):
+    driver.put_FiscalPropertyNumber(property) 
+    driver.put_FiscalPropertyPrint(1) 
+    driver.put_FiscalPropertyType(5) 
+    driver.put_FiscalPropertyValue(value) 
+    driver.WriteFiscalProperty() 
+    errorCheck()
+
 def init():
     driver.put_DeviceSingleSetting('Model', 57)
     driver.put_DeviceSingleSetting('UserPassword', 30)
@@ -30,53 +53,17 @@ def init():
     # Режим программирования
     driver.put_Mode(4)
     errorCheck()
-    # Отключаем печать способа и признака рассчета в позициях (116 и 117)
-    driver.put_Table(2)
-    driver.put_Row(1)
-    driver.put_Field(116)
-    driver.put_FieldType(0)
-    driver.put_Caption("0")
-    driver.SetTableField()
-    errorCheck()
-    driver.put_Table(2)
-    driver.put_Row(1)
-    driver.put_Field(117)
-    driver.put_FieldType(0)
-    driver.put_Caption("0")
-    driver.SetTableField()
-    errorCheck()
+    # Отключаем печать способа и признака расчета в позициях (116 и 117)
+    setTableIntValue(2, 1, 116, "0")
+    setTableIntValue(2, 1, 117, "0")
     # Шаблон чека №1
-    driver.put_Table(2)
-    driver.put_Row(1)
-    driver.put_Field(111)
-    driver.put_FieldType(0)
-    driver.put_Caption("1")
-    driver.SetTableField()
-    errorCheck()
+    setTableIntValue(2, 1, 111, "1")
     # Шрифт в чеке
-    driver.put_Table(2)
-    driver.put_Row(1)
-    driver.put_Field(32)
-    driver.put_FieldType(0)
-    driver.put_Caption("2")
-    driver.SetTableField()
-    errorCheck()
+    setTableIntValue(2, 1, 32, "2")
     # Яркость печати
-    driver.put_Table(2)
-    driver.put_Row(1)
-    driver.put_Field(19)
-    driver.put_FieldType(0)
-    driver.put_Caption("13")
-    driver.SetTableField()
-    errorCheck()
+    setTableIntValue(2, 1, 19, "13")
     # Отключаем печать названия секции
-    driver.put_Table(2)
-    driver.put_Row(1)
-    driver.put_Field(15)
-    driver.put_FieldType(0)
-    driver.put_Caption("0")
-    driver.SetTableField()
-    errorCheck()
+    setTableIntValue(2, 1, 15, "0")
     # Все норм
     #driver.put_PictureNumber(2)
     #driver.put_LeftMargin(120)
@@ -84,12 +71,6 @@ def init():
     #errorCheck()
     print "online: " + driver.get_SerialNumber() + " " + driver.get_DeviceDescription()
     beep()
-
-def errorCheck():
-    result_code = driver.get_ResultCode()
-    result_description = driver.get_ResultDescription()
-    if result_code != 0:
-        raise EFptrException(result_description)
 
 def zReport():
     driver.put_Mode(3)
@@ -114,20 +95,10 @@ def simpleCheck(data):
     # Открытие чека
     driver.OpenCheck()
     errorCheck()
-    # Имя и должность кассира 
-    driver.put_FiscalPropertyNumber(1021) 
-    driver.put_FiscalPropertyPrint(1) 
-    driver.put_FiscalPropertyType(5) 
-    driver.put_FiscalPropertyValue(data['cashier']) 
-    driver.WriteFiscalProperty() 
-    errorCheck()
+    # Имя и должность кассира
+    setFiscalStringProperty(1021, data['cashier'])
     # Email или телефон покупателя (ОФД отправит электронный чек) 
-    driver.put_FiscalPropertyNumber(1008) 
-    driver.put_FiscalPropertyPrint(1) 
-    driver.put_FiscalPropertyType(5) 
-    driver.put_FiscalPropertyValue(data['report']) 
-    driver.WriteFiscalProperty()
-    errorCheck()
+    setFiscalStringProperty(1008, data['report'])
     # Позици чека
     for p in data['positions']:
         # Наименование товара
