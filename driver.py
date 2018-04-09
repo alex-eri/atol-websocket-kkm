@@ -21,7 +21,7 @@ def errorCheck():
     if result_code != 0:
         raise EFptrException(result_description)
 
-def setTableIntValue(table, row, field, value):
+def setTableValue(table, row, field, type, value):
     driver.put_Table(table)
     driver.put_Row(row)
     driver.put_Field(field)
@@ -30,10 +30,10 @@ def setTableIntValue(table, row, field, value):
     driver.SetTableField()
     errorCheck()
 
-def setFiscalStringProperty(property, value):
+def setFiscalProperty(property, type, value):
     driver.put_FiscalPropertyNumber(property) 
     driver.put_FiscalPropertyPrint(1) 
-    driver.put_FiscalPropertyType(5) 
+    driver.put_FiscalPropertyType(type) 
     driver.put_FiscalPropertyValue(value) 
     driver.WriteFiscalProperty() 
     errorCheck()
@@ -54,16 +54,16 @@ def init():
     driver.put_Mode(4)
     errorCheck()
     # Отключаем печать способа и признака расчета в позициях (116 и 117)
-    setTableIntValue(2, 1, 116, "0")
-    setTableIntValue(2, 1, 117, "0")
+    setTableValue(2, 1, 116, 0, "0")
+    setTableValue(2, 1, 117, 0, "0")
     # Шаблон чека №1
-    setTableIntValue(2, 1, 111, "1")
+    setTableValue(2, 1, 111, 0, "1")
     # Шрифт в чеке
-    setTableIntValue(2, 1, 32, "2")
+    setTableValue(2, 1, 32, 0, "2")
     # Яркость печати
-    setTableIntValue(2, 1, 19, "13")
+    setTableValue(2, 1, 19, 0, "13")
     # Отключаем печать названия секции
-    setTableIntValue(2, 1, 15, "0")
+    setTableValue(2, 1, 15, 0, "0")
     # Все норм
     #driver.put_PictureNumber(2)
     #driver.put_LeftMargin(120)
@@ -72,33 +72,43 @@ def init():
     print "online: " + driver.get_SerialNumber() + " " + driver.get_DeviceDescription()
     beep()
 
+def xReport():
+    driver.put_Mode(2)
+    driver.put_UserPassword(30)
+    driver.SetMode()
+    errorCheck()
+    driver.put_ReportType(2)
+    driver.Report()
+    errorCheck()
+
 def zReport():
     driver.put_Mode(3)
-    errorCheck()
+    driver.put_UserPassword(30)
     driver.SetMode()
     errorCheck()
     driver.put_ReportType(1)
-    errorCheck()
     driver.Report()
     errorCheck()
 
 def simpleCheck(data):
     # Режим регистрации
     driver.put_Mode(1)
+    driver.put_UserPassword(30)
+    driver.SetMode()
     errorCheck()
     # Метод выполняет GetStatus(), SetMode(), CancelCheck() см. руководство программиста
     driver.NewDocument()
     errorCheck()
-    # Тип чека - Продажа
-    driver.put_CheckType(1)
+    # Тип чека
+    driver.put_CheckType(data['check_type'])
     errorCheck()
     # Открытие чека
     driver.OpenCheck()
     errorCheck()
     # Имя и должность кассира
-    setFiscalStringProperty(1021, data['cashier'])
+    setFiscalProperty(1021, 5, data['cashier'])
     # Email или телефон покупателя (ОФД отправит электронный чек) 
-    setFiscalStringProperty(1008, data['report'])
+    setFiscalProperty(1008, 5, data['report'])
     # Позици чека
     for p in data['positions']:
         # Наименование товара
@@ -120,7 +130,7 @@ def simpleCheck(data):
         errorCheck()
     # Прием оплаты
     # Тип оплаты
-    driver.put_TypeClose(data['type'])
+    driver.put_TypeClose(data['payment_type'])
     errorCheck()
     # Сумма оплаты
     driver.put_Summ(data['sum'])
@@ -131,11 +141,10 @@ def simpleCheck(data):
     # Закрытие чека.
     driver.CloseCheck()
     errorCheck()
-    # Получаем номер чека
-    result = driver.get_CheckNumber()
+    # Получаем номер смены и номер чека
+    driver.GetCurrentStatus()
     errorCheck()
-    # Все норм, возвращаем номер чека
-    return result
+    return str(driver.get_Session()) + '.' + str(driver.get_CheckNumber())
 
 def beep():
     driver.Beep()
@@ -146,25 +155,29 @@ def messageReceived(client, server, message):
         data = json.loads(message)
 
         if (data['method'] == 'ping'):
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'data': 'pong' }))
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': 'pong' }))
             return
 
         if (data['method'] == 'status'):
-            driver.GetStatus()
+            driver.GetCurrentStatus()
             if driver.get_ResultCode() != 0:
-                server.server_close()
-                sys.exit()
+                try:
+                    server.server_close()
+                except:
+                    pass
+                finally:
+                    sys.exit()
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
             return
 
         if (data['method'] == 'check'):
-            check = simpleCheck(data['check'])
+            check = simpleCheck(data['data'])
             errorCheck()
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'check': check }))
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': check }))
             return
 
         if (data['method'] == 'serial'):
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'data': driver.get_SerialNumber() }))
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': driver.get_SerialNumber() }))
             return
             
         if (data['method'] == 'z'):
@@ -172,10 +185,15 @@ def messageReceived(client, server, message):
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
             return
             
-        server.send_message(client, json.dumps({ 'result': 'ERR', 'method': data['method'], 'type': 'invalid', 'data': 'Unknown method' }))
+        if (data['method'] == 'x'):
+            xReport()
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
+            return
+            
+        server.send_message(client, json.dumps({ 'result': 'ERR', 'method': data['method'], 'type': 'invalid', 'value': 'Unknown method' }))
 
     except Exception as e:
-        server.send_message(client, json.dumps({ 'result': 'ERR', 'type': type(e).__name__, 'data': e.args[0] }))
+        server.send_message(client, json.dumps({ 'result': 'ERR', 'type': type(e).__name__, 'value': e.args[0] }))
 
 try:
     init()
