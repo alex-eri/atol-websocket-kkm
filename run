@@ -2,8 +2,11 @@
 
 cd /opt/atol
 
-port=`dmesg | grep ATOL | grep USB | cut -d "]" -f 2 | cut -d ":" -f 1 | cut -d "b" -f 2 | tail -n 1`
+atol=`dmesg | grep ATOL | grep USB | cut -d "]" -f 2 | cut -d ":" -f 1 | cut -d "b" -f 2 | tail -n 1 | xargs`
+port=`dmesg | grep ttyACM | grep "$atol" | cut -d ":" -f 3 | tail -n 2 | head -n 1 | xargs`
+disp=`dmesg | grep Posiflex | grep usb | cut -d "]" -f 2 | cut -d ":" -f 1 | cut -d "b" -f 2 | tail -n 1 | xargs`
+disp=`dmesg | grep ttyACM | grep "$disp" | cut -d ":" -f 3 | tail -n 1 | xargs`
 
-if [ "$port" != "" ]; then
-    ./driver.py $port 1>/dev/null 2>/dev/null
+if [[ "$atol" != "" && "$port" != "" && "$disp" != "" && -e "/dev/$port" && -e "/dev/$disp" ]]; then
+    ./driver.py $atol $disp 1>/dev/null 2>/dev/null
 fi

@@ -1,5 +1,10 @@
 #!/bin/bash
 
-port=`dmesg | grep ATOL | grep USB | cut -d "]" -f 2 | cut -d ":" -f 1 | cut -d "b" -f 2 | tail -n 1`
+atol=`dmesg | grep ATOL | grep USB | cut -d "]" -f 2 | cut -d ":" -f 1 | cut -d "b" -f 2 | tail -n 1 | xargs`
+port=`dmesg | grep ttyACM | grep "$atol" | cut -d ":" -f 3 | tail -n 2 | head -n 1 | xargs`
+disp=`dmesg | grep Posiflex | grep usb | cut -d "]" -f 2 | cut -d ":" -f 1 | cut -d "b" -f 2 | tail -n 1 | xargs`
+disp=`dmesg | grep ttyACM | grep "$disp" | cut -d ":" -f 3 | tail -n 1 | xargs`
 
-./driver.py $port
+if [[ "$atol" != "" && "$port" != "" && "$disp" != "" && -e "/dev/$port" && -e "/dev/$disp" ]]; then
+    ./driver.py $atol $disp
+fi

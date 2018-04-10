@@ -5,12 +5,18 @@ import dto9fptr
 import os
 import json
 import sys
+import serial
 from websocket_server import WebsocketServer
 
 reload(sys)
 sys.setdefaultencoding('utf8')
 
 driver = dto9fptr.Fptr(r'./fptr/libfptr.so', 15)
+
+rn = ''
+sn = ''
+fn = ''
+dd = ''
 
 class EFptrException(Exception):
     pass
@@ -39,19 +45,33 @@ def setFiscalProperty(property, type, value):
     errorCheck()
 
 def init():
+    global sn, rn, dd, fn
+
     driver.put_DeviceSingleSetting('Model', 57)
     driver.put_DeviceSingleSetting('UserPassword', 30)
     driver.put_DeviceSingleSetting('Port', 'USB$' + sys.argv[1])
-    driver.put_DeviceSingleSetting('BaudRate', 115200)
-    driver.put_DeviceSingleSetting('Protocol', 0)
+    #driver.put_DeviceSingleSetting("Port", "TTY")
+    #driver.put_DeviceSingleSetting("DeviceFile", sys.argv[1])
+    #driver.put_DeviceSingleSetting("DeviceFile", 'ttyACM0')
+    #driver.put_DeviceSingleSetting('BaudRate', 115200)
+    driver.put_DeviceSingleSetting('Protocol', 2)
     driver.put_DeviceSingleSetting('SearchDir', './fptr')
     driver.ApplySingleSettings()
+    errorCheck()
     driver.put_DeviceEnabled(True)
+    errorCheck()
+    driver.put_Mode(1)
+    driver.put_UserPassword(30)
+    driver.SetMode()
     errorCheck()
     driver.GetStatus()
     errorCheck()
+    sn = driver.get_SerialNumber().strip()
+    dd = driver.get_DeviceDescription().strip()
     # Режим программирования
     driver.put_Mode(4)
+    driver.put_UserPassword(30)
+    driver.SetMode()
     errorCheck()
     # Отключаем печать способа и признака расчета в позициях (116 и 117)
     setTableValue(2, 1, 116, 0, "0")
@@ -69,7 +89,14 @@ def init():
     #driver.put_LeftMargin(120)
     #driver.PrintPictureByNumber()
     #errorCheck()
-    print "online: " + driver.get_SerialNumber() + " " + driver.get_DeviceDescription()
+    driver.put_FiscalPropertyNumber(1037)
+    driver.put_FiscalPropertyType(5)
+    driver.ReadFiscalProperty()
+    rn = driver.get_FiscalPropertyValue().strip()
+    driver.put_RegisterNumber(47)
+    driver.GetRegister()
+    fn = driver.get_SerialNumber().strip()
+    print "online: " + sn + " " + dd + " " + rn + " " + fn
     beep()
 
 def xReport():
@@ -101,7 +128,6 @@ def simpleCheck(data):
     errorCheck()
     # Тип чека
     driver.put_CheckType(data['check_type'])
-    errorCheck()
     # Открытие чека
     driver.OpenCheck()
     errorCheck()
@@ -131,10 +157,8 @@ def simpleCheck(data):
     # Прием оплаты
     # Тип оплаты
     driver.put_TypeClose(data['payment_type'])
-    errorCheck()
     # Сумма оплаты
     driver.put_Summ(data['sum'])
-    errorCheck()
     # Регистрация платежа
     driver.Payment()
     errorCheck()
@@ -150,34 +174,52 @@ def beep():
     driver.Beep()
     errorCheck()
 
+busy = False
+
+def exitIfFail():
+    try:
+        if driver.get_ResultCode() != 0:
+            try:
+                server.server_close()
+            finally:
+                sys.exit()
+    except:
+        pass
+
 def messageReceived(client, server, message):
+    global busy
+
+    if (busy):
+        server.send_message(client, json.dumps({ 'result': 'ERR', 'type': 'busy', 'value': 'Фискальный регистратор занят выполнением команды' }))
+        return
+
+    busy = True
+
     try:
         data = json.loads(message)
 
         if (data['method'] == 'ping'):
+            driver.GetCurrentStatus()
+            exitIfFail()
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': 'pong' }))
             return
 
         if (data['method'] == 'status'):
             driver.GetCurrentStatus()
-            if driver.get_ResultCode() != 0:
-                try:
-                    server.server_close()
-                except:
-                    pass
-                finally:
-                    sys.exit()
+            exitIfFail()
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
             return
 
         if (data['method'] == 'check'):
-            check = simpleCheck(data['data'])
-            errorCheck()
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': check }))
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': simpleCheck(data['data']) }))
             return
 
         if (data['method'] == 'serial'):
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': driver.get_SerialNumber() }))
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': sn }))
+            return
+
+        if (data['method'] == 'reg_num'):
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': rn }))
             return
             
         if (data['method'] == 'z'):
@@ -189,13 +231,35 @@ def messageReceived(client, server, message):
             xReport()
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
             return
+
+        if (data['method'] == 'display'):
+            p = serial.Serial('/dev/' + sys.argv[2], 9600, timeout = 1)
+            try:
+                p.write('\x1B\x3D\x02\x1B\x74\x06\x1B\x52\x00\x0C' + str(data['data']).encode('cp866'))
+                p.flushOutput()
+                p.close()
+            except:
+                pass
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
+            return
             
         server.send_message(client, json.dumps({ 'result': 'ERR', 'method': data['method'], 'type': 'invalid', 'value': 'Unknown method' }))
 
     except Exception as e:
         server.send_message(client, json.dumps({ 'result': 'ERR', 'type': type(e).__name__, 'value': e.args[0] }))
 
+    finally:
+        busy = False
+
 try:
+    p = serial.Serial('/dev/' + sys.argv[2], 9600, timeout = 1)
+    try:
+        p.write('\x1B\x3D\x02\x1B\x74\x06\x1B\x52\x00\x0C****************************************')
+        p.flushOutput()
+        p.close()
+    except:
+        pass
+
     init()
 
     server = WebsocketServer(9111)
