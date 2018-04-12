@@ -11,7 +11,7 @@ from websocket_server import WebsocketServer
 reload(sys)
 sys.setdefaultencoding('utf8')
 
-driver = dto9fptr.Fptr(r'./fptr/libfptr.so', 15)
+driver = dto9fptr.Fptr('./fptr/libfptr.so', 15)
 
 rn = ''
 sn = ''
@@ -21,11 +21,18 @@ dd = ''
 class EFptrException(Exception):
     pass
 
-def errorCheck():
-    result_code = driver.get_ResultCode()
-    result_description = driver.get_ResultDescription()
-    if result_code != 0:
-        raise EFptrException(result_description)
+def errorCheck(exitIfFail = False):
+    if driver.get_ResultCode() != 0:
+        if (exitIfFail):
+            try:
+                try:
+                    server.server_close()
+                finally:
+                    sys.exit()
+            except:
+                pass
+        else:
+            raise EFptrException(driver.get_ResultDescription())
 
 def setTableValue(table, row, field, type, value):
     driver.put_Table(table)
@@ -44,85 +51,69 @@ def setFiscalProperty(property, type, value):
     driver.WriteFiscalProperty() 
     errorCheck()
 
+def setMode(mode):
+    driver.put_Mode(mode)
+    driver.put_UserPassword(30)
+    driver.SetMode()
+    errorCheck()
+
 def init():
     global sn, rn, dd, fn
 
     driver.put_DeviceSingleSetting('Model', 57)
     driver.put_DeviceSingleSetting('UserPassword', 30)
     driver.put_DeviceSingleSetting('Port', 'USB$' + sys.argv[1])
-    #driver.put_DeviceSingleSetting("Port", "TTY")
-    #driver.put_DeviceSingleSetting("DeviceFile", sys.argv[1])
-    #driver.put_DeviceSingleSetting("DeviceFile", 'ttyACM0')
-    #driver.put_DeviceSingleSetting('BaudRate', 115200)
     driver.put_DeviceSingleSetting('Protocol', 2)
     driver.put_DeviceSingleSetting('SearchDir', './fptr')
     driver.ApplySingleSettings()
     errorCheck()
     driver.put_DeviceEnabled(True)
     errorCheck()
-    driver.put_Mode(1)
-    driver.put_UserPassword(30)
-    driver.SetMode()
-    errorCheck()
+    # Режим регистрации
+    setMode(1)
     driver.GetStatus()
     errorCheck()
     sn = driver.get_SerialNumber().strip()
     dd = driver.get_DeviceDescription().strip()
     # Режим программирования
-    driver.put_Mode(4)
-    driver.put_UserPassword(30)
-    driver.SetMode()
-    errorCheck()
+    setMode(4)
     # Отключаем печать способа и признака расчета в позициях (116 и 117)
-    setTableValue(2, 1, 116, 0, "0")
-    setTableValue(2, 1, 117, 0, "0")
+    setTableValue(2, 1, 116, 0, '0')
+    setTableValue(2, 1, 117, 0, '0')
     # Шаблон чека №1
-    setTableValue(2, 1, 111, 0, "1")
+    setTableValue(2, 1, 111, 0, '1')
     # Шрифт в чеке
-    setTableValue(2, 1, 32, 0, "2")
+    setTableValue(2, 1, 32, 0, '2')
     # Яркость печати
-    setTableValue(2, 1, 19, 0, "13")
+    setTableValue(2, 1, 19, 0, '13')
     # Отключаем печать названия секции
-    setTableValue(2, 1, 15, 0, "0")
-    # Все норм
-    #driver.put_PictureNumber(2)
-    #driver.put_LeftMargin(120)
-    #driver.PrintPictureByNumber()
-    #errorCheck()
+    setTableValue(2, 1, 15, 0, '0')
+    # Получаем РН фискальника
     driver.put_FiscalPropertyNumber(1037)
     driver.put_FiscalPropertyType(5)
     driver.ReadFiscalProperty()
     rn = driver.get_FiscalPropertyValue().strip()
+    # Получем серийник ФН
     driver.put_RegisterNumber(47)
     driver.GetRegister()
     fn = driver.get_SerialNumber().strip()
-    print "online: " + sn + " " + dd + " " + rn + " " + fn
+    # Все норм, бибикаем
     beep()
 
-def xReport():
-    driver.put_Mode(2)
-    driver.put_UserPassword(30)
-    driver.SetMode()
-    errorCheck()
-    driver.put_ReportType(2)
-    driver.Report()
-    errorCheck()
-
-def zReport():
-    driver.put_Mode(3)
-    driver.put_UserPassword(30)
-    driver.SetMode()
-    errorCheck()
-    driver.put_ReportType(1)
+def aReport(mode, type):
+    setMode(mode)
+    driver.put_ReportType(type)
     driver.Report()
     errorCheck()
 
 def simpleCheck(data):
     # Режим регистрации
-    driver.put_Mode(1)
-    driver.put_UserPassword(30)
-    driver.SetMode()
-    errorCheck()
+    setMode(1)
+    # Картинка из памяти
+    #driver.put_PictureNumber(2)
+    #driver.put_LeftMargin(120)
+    #driver.PrintPictureByNumber()
+    #errorCheck()
     # Метод выполняет GetStatus(), SetMode(), CancelCheck() см. руководство программиста
     driver.NewDocument()
     errorCheck()
@@ -168,29 +159,56 @@ def simpleCheck(data):
     # Получаем номер смены и номер чека
     driver.GetCurrentStatus()
     errorCheck()
-    return str(driver.get_Session()) + '.' + str(driver.get_CheckNumber())
+
+    check = {}
+
+    check['session'] = driver.get_Session()
+    check['number'] = driver.get_CheckNumber()
+
+    # Дата/Время последнего чека, тип чека, номер ФД чека, сумма чека, ФП
+    driver.put_RegisterNumber(51)
+    driver.GetRegister()
+    check['r51_date'] = driver.get_Date()
+    check['r51_time'] = driver.get_Time()
+    check['r51_type'] = driver.get_CheckType()
+    check['r51_number'] = driver.get_DocNumber()
+    check['r51_summ'] = driver.get_Summ()
+    check['r51_value'] = driver.get_Value()
+
+    # Дата/Время последнего фискального документа, его номер, ФП
+    driver.put_RegisterNumber(52)
+    driver.GetRegister()
+    check['r52_date'] = driver.get_Date()
+    check['r52_time'] = driver.get_Time()
+    check['r52_number'] = driver.get_DocNumber()
+    check['r52_value'] = driver.get_Value()
+
+    return check
 
 def beep():
     driver.Beep()
     errorCheck()
 
-busy = False
-
-def exitIfFail():
+def display(caption):
+    p = serial.Serial('/dev/' + sys.argv[2], 9600)
     try:
-        if driver.get_ResultCode() != 0:
-            try:
-                server.server_close()
-            finally:
-                sys.exit()
+        # Инициализация PD2800 в режиме протокола EPSON
+        p.write('\x1B\x3D\x02\x1B\x74\x06\x1B\x52\x00\x0C' + str(caption).encode('cp866'))
+        p.flushOutput()
+        p.close()
     except:
         pass
 
+busy = False
+
+def newClient(client, server):
+    server.send_message(client, json.dumps({ 'result': 'OK', 'method': 'rn', 'value': rn }))
+    
 def messageReceived(client, server, message):
     global busy
 
     if (busy):
-        server.send_message(client, json.dumps({ 'result': 'ERR', 'type': 'busy', 'value': 'Фискальный регистратор занят выполнением команды' }))
+        server.send_message(client, json.dumps({ 'result': 'ERR', 'type': 'busy', 'value': 'Сервер занят выполнением команды' }))
         return
 
     busy = True
@@ -199,47 +217,39 @@ def messageReceived(client, server, message):
         data = json.loads(message)
 
         if (data['method'] == 'ping'):
+            # Дергается время от времени, что-бы проверить не отвалился-ли ФР
             driver.GetCurrentStatus()
-            exitIfFail()
+            errorCheck(True)
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': 'pong' }))
             return
 
         if (data['method'] == 'status'):
-            driver.GetCurrentStatus()
-            exitIfFail()
+            # Дергается перед пробитием чека, что-бы проверить не отвалился-ли ФР
+            driver.GetStatus()
+            errorCheck(True)
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
             return
 
         if (data['method'] == 'check'):
+            # Пробить чек
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': simpleCheck(data['data']) }))
             return
 
-        if (data['method'] == 'serial'):
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': sn }))
-            return
-
-        if (data['method'] == 'reg_num'):
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': rn }))
-            return
-            
         if (data['method'] == 'z'):
-            zReport()
+            # Z-Отчет
+            aReport(3, 1)
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
             return
             
         if (data['method'] == 'x'):
-            xReport()
+            # X-Отчет
+            aReport(2, 2)
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
             return
 
         if (data['method'] == 'display'):
-            p = serial.Serial('/dev/' + sys.argv[2], 9600, timeout = 1)
-            try:
-                p.write('\x1B\x3D\x02\x1B\x74\x06\x1B\x52\x00\x0C' + str(data['data']).encode('cp866'))
-                p.flushOutput()
-                p.close()
-            except:
-                pass
+            # Вывести что-то на дисплей покупателя
+            display(data['data'])
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
             return
             
@@ -252,19 +262,14 @@ def messageReceived(client, server, message):
         busy = False
 
 try:
-    p = serial.Serial('/dev/' + sys.argv[2], 9600, timeout = 1)
-    try:
-        p.write('\x1B\x3D\x02\x1B\x74\x06\x1B\x52\x00\x0C****************************************')
-        p.flushOutput()
-        p.close()
-    except:
-        pass
-
     init()
+    # 2x20 - две строки по 20 символов
+    display('****************************************')
 
     server = WebsocketServer(9111)
 
     server.set_fn_message_received(messageReceived)
+    server.set_fn_new_client(newClient)
     server.run_forever()
 
 except Exception as e:
