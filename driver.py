@@ -13,11 +13,6 @@ sys.setdefaultencoding('utf8')
 
 driver = dto9fptr.Fptr('./fptr/libfptr.so', 15)
 
-rn = ''
-sn = ''
-fn = ''
-dd = ''
-
 class EFptrException(Exception):
     pass
 
@@ -43,13 +38,14 @@ def setTableValue(table, row, field, type, value):
     driver.SetTableField()
     errorCheck()
 
-def setFiscalProperty(property, type, value):
+def setFiscalProperty(property, type, value, checkForError = True):
     driver.put_FiscalPropertyNumber(property) 
     driver.put_FiscalPropertyPrint(1) 
     driver.put_FiscalPropertyType(type) 
     driver.put_FiscalPropertyValue(value) 
-    driver.WriteFiscalProperty() 
-    errorCheck()
+    driver.WriteFiscalProperty()
+    if checkForError:
+        errorCheck()
 
 def setMode(mode):
     driver.put_Mode(mode)
@@ -57,9 +53,11 @@ def setMode(mode):
     driver.SetMode()
     errorCheck()
 
-def init():
-    global sn, rn, dd, fn
+def font(f):
+    setMode(4)
+    setTableValue(2, 1, 32, 0, f)
 
+def init():
     driver.put_DeviceSingleSetting('Model', 57)
     driver.put_DeviceSingleSetting('UserPassword', 30)
     driver.put_DeviceSingleSetting('Port', 'USB$' + sys.argv[1])
@@ -69,44 +67,31 @@ def init():
     errorCheck()
     driver.put_DeviceEnabled(True)
     errorCheck()
-    # Режим регистрации
-    setMode(1)
-    driver.GetStatus()
-    errorCheck()
-    sn = driver.get_SerialNumber().strip()
-    dd = driver.get_DeviceDescription().strip()
+    driver.CancelCheck()
     # Режим программирования
+    # на ошибки не проверяем, если, например, чек открыт то они будут
     setMode(4)
     # Отключаем печать способа и признака расчета в позициях (116 и 117)
     setTableValue(2, 1, 116, 0, '0')
     setTableValue(2, 1, 117, 0, '0')
     # Шаблон чека №1
     setTableValue(2, 1, 111, 0, '1')
-    # Шрифт в чеке
-    setTableValue(2, 1, 32, 0, '2')
     # Яркость печати
     setTableValue(2, 1, 19, 0, '13')
     # Отключаем печать названия секции
     setTableValue(2, 1, 15, 0, '0')
-    # Получаем РН фискальника
-    driver.put_FiscalPropertyNumber(1037)
-    driver.put_FiscalPropertyType(5)
-    driver.ReadFiscalProperty()
-    rn = driver.get_FiscalPropertyValue().strip()
-    # Получем серийник ФН
-    driver.put_RegisterNumber(47)
-    driver.GetRegister()
-    fn = driver.get_SerialNumber().strip()
     # Все норм, бибикаем
     beep()
 
 def aReport(mode, type):
+    font(3)
     setMode(mode)
     driver.put_ReportType(type)
     driver.Report()
     errorCheck()
 
-def simpleCheck(data):
+def check(data):
+    font(2)
     # Режим регистрации
     setMode(1)
     # Картинка из памяти
@@ -114,6 +99,9 @@ def simpleCheck(data):
     #driver.put_LeftMargin(120)
     #driver.PrintPictureByNumber()
     #errorCheck()
+    # Имя и должность кассира
+    if (data['cashier']):
+        setFiscalProperty(1021, 5, data['cashier'])
     # Метод выполняет GetStatus(), SetMode(), CancelCheck() см. руководство программиста
     driver.NewDocument()
     errorCheck()
@@ -123,9 +111,11 @@ def simpleCheck(data):
     driver.OpenCheck()
     errorCheck()
     # Имя и должность кассира
-    setFiscalProperty(1021, 5, data['cashier'])
-    # Email или телефон покупателя (ОФД отправит электронный чек) 
-    setFiscalProperty(1008, 5, data['report'])
+    if (data['cashier']):
+        setFiscalProperty(1021, 5, data['cashier'])
+    # Email или телефон покупателя (ОФД отправит электронный чек)
+    if (data['report']):
+        setFiscalProperty(1008, 5, data['report'])
     # Позици чека
     for p in data['positions']:
         # Наименование товара
@@ -134,7 +124,7 @@ def simpleCheck(data):
         driver.put_Price(p['price'])
         # Количество товара
         driver.put_Quantity(p['quantity'])
-        # Налог (Без НДС)
+        # Налог
         driver.put_TaxNumber(p['tax'])
         # Сумма строки (позиции)
         driver.put_PositionSum(p['sum'])
@@ -145,7 +135,6 @@ def simpleCheck(data):
         # Регистрация позиции
         driver.Registration()
         errorCheck()
-    # Прием оплаты
     # Тип оплаты
     driver.put_TypeClose(data['payment_type'])
     # Сумма оплаты
@@ -156,53 +145,104 @@ def simpleCheck(data):
     # Закрытие чека.
     driver.CloseCheck()
     errorCheck()
-    # Получаем номер смены и номер чека
-    driver.GetCurrentStatus()
-    errorCheck()
-
-    check = {}
-
-    check['session'] = driver.get_Session()
-    check['number'] = driver.get_CheckNumber()
-
     # Дата/Время последнего чека, тип чека, номер ФД чека, сумма чека, ФП
     driver.put_RegisterNumber(51)
     driver.GetRegister()
-    check['r51_date'] = driver.get_Date()
-    check['r51_time'] = driver.get_Time()
-    check['r51_type'] = driver.get_CheckType()
-    check['r51_number'] = driver.get_DocNumber()
-    check['r51_summ'] = driver.get_Summ()
-    check['r51_value'] = driver.get_Value()
-
-    # Дата/Время последнего фискального документа, его номер, ФП
-    driver.put_RegisterNumber(52)
+    #fd = str(driver.get_DocNumber()).strip()
+    fp = str(driver.get_Value()).strip()
+    # Серийник ФН
+    driver.put_RegisterNumber(47)
     driver.GetRegister()
-    check['r52_date'] = driver.get_Date()
-    check['r52_time'] = driver.get_Time()
-    check['r52_number'] = driver.get_DocNumber()
-    check['r52_value'] = driver.get_Value()
+    fn = str(driver.get_SerialNumber()).strip()
 
-    return check
+    return str(fn).zfill(16) + ':' + str(fp).zfill(10)
+
+def correction(data):
+    font(2)
+    # Режим регистрации
+    setMode(1)
+    driver.NewDocument()
+    driver.put_CheckType(7)
+    driver.put_PrintCheck(1)
+    driver.OpenCheck()
+    errorCheck()
+
+    # Имя и должность кассира
+    if (data['cashier']):
+        setFiscalProperty(1021, 5, data['cashier'])
+
+    driver.put_Name('Коррекция прихода')
+    driver.put_Price(data['sum'])
+    driver.put_Quantity(1)
+    driver.put_PositionSum(data['sum'])
+
+    # Тип коррекции: 0 - самостоятельно, 1 - по предписанию
+    setFiscalProperty(1173, 1, data['type'], False)
+
+    # Основание для коррекции
+    # Составной тег
+
+    driver.BeginFormFiscalProperty()
+    errorCheck()
+
+    # Добавление тега 1177 к составному тегу
+    # Документ
+
+    driver.put_FiscalPropertyNumber(1177)
+    driver.put_FiscalPropertyType(5)
+    driver.put_FiscalPropertyValue(data['document'])
+    driver.AddFiscalProperty()
+    errorCheck()
+
+    # Добавление тега 1178 к составному тегу
+    # время в UnixTime
+
+    driver.put_FiscalPropertyNumber(1178)
+    driver.put_FiscalPropertyType(4)
+    driver.put_FiscalPropertyValue(data['unixtime'])
+    driver.AddFiscalProperty()
+    errorCheck()
+
+    # Добавление тега 1179 к составному тегу
+    # Номер документа
+
+    driver.put_FiscalPropertyNumber(1179)
+    driver.put_FiscalPropertyType(5)
+    driver.put_FiscalPropertyValue(data['number'])
+    driver.AddFiscalProperty()
+    errorCheck()
+
+    driver.EndFormFiscalProperty()
+    errorCheck()
+
+    # Запись тега 1174
+    setFiscalProperty(1174, 0, driver.get_FiscalPropertyValue(), False)
+
+    driver.put_TaxNumber(data['tax'])
+    driver.Registration()
+    errorCheck()
+
+    driver.put_TypeClose(0)
+    driver.put_Summ(data['sum'])
+    driver.CloseCheck()
+    errorCheck()
 
 def beep():
     driver.Beep()
     errorCheck()
 
 def display(caption):
-    p = serial.Serial('/dev/' + sys.argv[2], 9600)
-    try:
-        # Инициализация PD2800 в режиме протокола EPSON
-        p.write('\x1B\x3D\x02\x1B\x74\x06\x1B\x52\x00\x0C' + str(caption).encode('cp866'))
-        p.flushOutput()
-        p.close()
-    except:
-        pass
+    if len(sys.argv) > 2:
+        p = serial.Serial('/dev/' + sys.argv[2], 9600)
+        try:
+            # Инициализация PD2800 в режиме протокола EPSON
+            p.write('\x1B\x3D\x02\x1B\x74\x06\x1B\x52\x00\x0C' + str(caption).encode('cp866'))
+            p.flushOutput()
+            p.close()
+        except:
+            pass
 
 busy = False
-
-def newClient(client, server):
-    server.send_message(client, json.dumps({ 'result': 'OK', 'method': 'rn', 'value': rn }))
     
 def messageReceived(client, server, message):
     global busy
@@ -232,11 +272,17 @@ def messageReceived(client, server, message):
 
         if (data['method'] == 'check'):
             # Пробить чек
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': simpleCheck(data['data']) }))
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': check(data['data']) }))
+            return
+
+        if (data['method'] == 'correction'):
+            # Пробить чек коррекции
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': correction(data['data']) }))
             return
 
         if (data['method'] == 'z'):
             # Z-Отчет
+            setFiscalProperty(1021, 5, data['cashier'])
             aReport(3, 1)
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
             return
@@ -244,6 +290,36 @@ def messageReceived(client, server, message):
         if (data['method'] == 'x'):
             # X-Отчет
             aReport(2, 2)
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
+            return
+
+        if (data['method'] == 'open'):
+            font(3)
+            setMode(1)
+            setFiscalProperty(1021, 5, data['cashier'])
+            driver.OpenSession()
+            errorCheck()
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
+            return
+
+        if (data['method'] == 'cash_in'):
+            font(3)
+            setMode(1)
+            setFiscalProperty(1021, 5, data['cashier'])
+            driver.OpenSession()
+            # на ошибки не проверяем, смена может быть уже открыта
+            driver.put_Summ(data['cash'])
+            driver.CashIncome()
+            errorCheck()
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
+            return
+
+        if (data['method'] == 'cash_out'):
+            font(3)
+            setMode(1)
+            driver.put_Summ(data['cash'])
+            driver.CashOutcome()
+            errorCheck()
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
             return
 
@@ -269,10 +345,8 @@ try:
     server = WebsocketServer(9111)
 
     server.set_fn_message_received(messageReceived)
-    server.set_fn_new_client(newClient)
     server.run_forever()
 
 except Exception as e:
     print(str(e))
     sys.exit()
-
