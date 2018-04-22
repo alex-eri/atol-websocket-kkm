@@ -80,18 +80,18 @@ def init():
     setTableValue(2, 1, 19, 0, '13')
     # Отключаем печать названия секции
     setTableValue(2, 1, 15, 0, '0')
+    # Шрифт
+    font(3)
     # Все норм, бибикаем
     beep()
 
 def aReport(mode, type):
-    font(3)
     setMode(mode)
     driver.put_ReportType(type)
     driver.Report()
     errorCheck()
 
 def check(data):
-    font(2)
     # Режим регистрации
     setMode(1)
     # Картинка из памяти
@@ -155,10 +155,12 @@ def check(data):
     driver.GetRegister()
     fn = str(driver.get_SerialNumber()).strip()
 
+    driver.GetStatus()
+    errorCheck()
+
     return str(fn).zfill(16) + ':' + str(fp).zfill(10)
 
 def correction(data):
-    font(2)
     # Режим регистрации
     setMode(1)
     driver.NewDocument()
@@ -183,7 +185,6 @@ def correction(data):
     # Составной тег
 
     driver.BeginFormFiscalProperty()
-    errorCheck()
 
     # Добавление тега 1177 к составному тегу
     # Документ
@@ -192,7 +193,6 @@ def correction(data):
     driver.put_FiscalPropertyType(5)
     driver.put_FiscalPropertyValue(data['document'])
     driver.AddFiscalProperty()
-    errorCheck()
 
     # Добавление тега 1178 к составному тегу
     # время в UnixTime
@@ -201,7 +201,6 @@ def correction(data):
     driver.put_FiscalPropertyType(4)
     driver.put_FiscalPropertyValue(data['unixtime'])
     driver.AddFiscalProperty()
-    errorCheck()
 
     # Добавление тега 1179 к составному тегу
     # Номер документа
@@ -210,10 +209,8 @@ def correction(data):
     driver.put_FiscalPropertyType(5)
     driver.put_FiscalPropertyValue(data['number'])
     driver.AddFiscalProperty()
-    errorCheck()
 
     driver.EndFormFiscalProperty()
-    errorCheck()
 
     # Запись тега 1174
     setFiscalProperty(1174, 0, driver.get_FiscalPropertyValue(), False)
@@ -225,6 +222,8 @@ def correction(data):
     driver.put_TypeClose(0)
     driver.put_Summ(data['sum'])
     driver.CloseCheck()
+    errorCheck()
+    driver.GetStatus()
     errorCheck()
 
 def beep():
@@ -260,50 +259,58 @@ def messageReceived(client, server, message):
             # Дергается время от времени, что-бы проверить не отвалился-ли ФР
             driver.GetCurrentStatus()
             errorCheck(True)
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': 'pong' }))
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': 'pong', 'opened': driver.get_SessionOpened() }))
             return
 
         if (data['method'] == 'status'):
             # Дергается перед пробитием чека, что-бы проверить не отвалился-ли ФР
             driver.GetStatus()
             errorCheck(True)
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'opened': driver.get_SessionOpened() }))
             return
 
         if (data['method'] == 'check'):
             # Пробить чек
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': check(data['data']) }))
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': check(data['data']), 'opened': driver.get_SessionOpened() }))
             return
 
         if (data['method'] == 'correction'):
             # Пробить чек коррекции
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': correction(data['data']) }))
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': correction(data['data']), 'opened': driver.get_SessionOpened() }))
             return
 
-        if (data['method'] == 'z'):
+        if (data['method'] == 'report_z'):
             # Z-Отчет
             setFiscalProperty(1021, 5, data['cashier'])
             aReport(3, 1)
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
+            driver.GetStatus()
+            errorCheck()
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'opened': driver.get_SessionOpened() }))
             return
             
-        if (data['method'] == 'x'):
+        if (data['method'] == 'report_x'):
             # X-Отчет
             aReport(2, 2)
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
             return
 
+        if (data['method'] == 'report_c'):
+            # Отчет по кассирам
+            aReport(2, 8)
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
+            return
+
         if (data['method'] == 'open'):
-            font(3)
             setMode(1)
             setFiscalProperty(1021, 5, data['cashier'])
             driver.OpenSession()
             errorCheck()
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
+            driver.GetStatus()
+            errorCheck()
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'opened': driver.get_SessionOpened() }))
             return
 
         if (data['method'] == 'cash_in'):
-            font(3)
             setMode(1)
             setFiscalProperty(1021, 5, data['cashier'])
             driver.OpenSession()
@@ -311,11 +318,12 @@ def messageReceived(client, server, message):
             driver.put_Summ(data['cash'])
             driver.CashIncome()
             errorCheck()
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
+            driver.GetStatus()
+            errorCheck()
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'opened': driver.get_SessionOpened() }))
             return
 
         if (data['method'] == 'cash_out'):
-            font(3)
             setMode(1)
             driver.put_Summ(data['cash'])
             driver.CashOutcome()
