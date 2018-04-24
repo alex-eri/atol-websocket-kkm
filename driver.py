@@ -1,11 +1,17 @@
 #!/usr/bin/python
 # -*- coding:utf-8 -*-
 
-import dto9fptr
-import os
 import json
+import os
+import signal
 import sys
+import time
+from multiprocessing import Queue
+from threading import Thread
+
 import serial
+
+import dto9fptr
 from websocket_server import WebsocketServer
 
 reload(sys)
@@ -13,16 +19,21 @@ sys.setdefaultencoding('utf8')
 
 driver = dto9fptr.Fptr('./fptr/libfptr.so', 15)
 
+queue = Queue()
+exit = False
+
 class EFptrException(Exception):
     pass
 
 def errorCheck(exitIfFail = False):
+    global exit
     if driver.get_ResultCode() != 0:
         if (exitIfFail):
             try:
                 try:
                     server.server_close()
                 finally:
+                    exit = True
                     sys.exit()
             except:
                 pass
@@ -241,17 +252,7 @@ def display(caption):
         except:
             pass
 
-busy = False
-    
-def messageReceived(client, server, message):
-    global busy
-
-    if (busy):
-        server.send_message(client, json.dumps({ 'result': 'ERR', 'type': 'busy', 'value': 'Сервер занят выполнением команды' }))
-        return
-
-    busy = True
-
+def processMessage(client, server, message):
     try:
         data = json.loads(message)
 
@@ -331,6 +332,14 @@ def messageReceived(client, server, message):
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
             return
 
+        if (data['method'] == 'fn'):
+            # Серийник ФН
+            driver.put_RegisterNumber(47)
+            driver.GetRegister()
+            errorCheck()
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': str(driver.get_SerialNumber()).strip() }))
+            return
+
         if (data['method'] == 'display'):
             # Вывести что-то на дисплей покупателя
             display(data['data'])
@@ -341,20 +350,44 @@ def messageReceived(client, server, message):
 
     except Exception as e:
         server.send_message(client, json.dumps({ 'result': 'ERR', 'type': type(e).__name__, 'value': e.args[0] }))
+    
+def messageReceived(client, server, message):
+    queue.put({ 'client': client['id'], 'message': message })
 
-    finally:
-        busy = False
+def serviceShutdown(signum, frame):
+    global exit
+
+    exit = True
+    sys.exit()
+
+class Runner(Thread):
+    def run(self):
+        while not exit:
+            if queue.qsize() > 0:
+                job = queue.get()
+                for i in server.clients:
+                    if i['id'] == job['client']:
+                        processMessage(i, server, job['message'])
+            else:
+                time.sleep(0.1)
 
 try:
     init()
     # 2x20 - две строки по 20 символов
     display('****************************************')
 
-    server = WebsocketServer(9111)
+    runner = Runner()
+    runner.start()
 
+    server = WebsocketServer(9111, '0.0.0.0')
     server.set_fn_message_received(messageReceived)
+
+    signal.signal(signal.SIGTERM, serviceShutdown)
+    signal.signal(signal.SIGINT, serviceShutdown)    
+
     server.run_forever()
 
 except Exception as e:
     print(str(e))
+    exit = True
     sys.exit()

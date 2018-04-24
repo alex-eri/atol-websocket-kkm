@@ -1,0 +1,13 @@
+# если надо разделить фискальник на два рабочих места, используем xinetd в качестве прокси
+
+service kkm {
+    disable = no
+    type = UNLISTED
+    socket_type = stream
+    protocol = tcp
+    wait = no
+    redirect = 192.168.10.254 9111
+    bind = 127.0.0.1
+    port = 9111
+    user = nobody
+}
