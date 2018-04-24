@@ -14,8 +14,10 @@ import serial
 import dto9fptr
 from websocket_server import WebsocketServer
 
-reload(sys)
-sys.setdefaultencoding('utf8')
+if sys.version[0] == '2':
+    reload(sys)
+# pylint: disable-msg=E1101
+    sys.setdefaultencoding("utf-8")
 
 driver = dto9fptr.Fptr('./fptr/libfptr.so', 15)
 
@@ -373,6 +375,7 @@ class Runner(Thread):
 
 try:
     init()
+
     # 2x20 - две строки по 20 символов
     display('****************************************')
 
