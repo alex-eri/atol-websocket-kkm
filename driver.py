@@ -16,7 +16,7 @@ from websocket_server import WebsocketServer
 
 if sys.version[0] == '2':
     reload(sys)
-# pylint: disable-msg=E1101
+#pylint: disable-msg=E1101
     sys.setdefaultencoding("utf-8")
 
 driver = dto9fptr.Fptr('./fptr/libfptr.so', 15)
@@ -26,6 +26,23 @@ exit = False
 
 class EFptrException(Exception):
     pass
+
+class Runner(Thread):
+    def run(self):
+        a = 0
+        while not exit:
+            a = a + 1
+            if a > 50:
+                driver.GetCurrentStatus()
+                errorCheck(True)
+                a = 0
+            if queue.qsize() > 0:
+                job = queue.get()
+                for i in server.clients:
+                    if i['id'] == job['client']:
+                        processMessage(i, server, job['message'])
+            else:
+                time.sleep(0.1)
 
 def errorCheck(exitIfFail = False):
     global exit
@@ -70,7 +87,7 @@ def font(f):
     setMode(4)
     setTableValue(2, 1, 32, 0, f)
 
-def init():
+def fptrInit():
     driver.put_DeviceSingleSetting('Model', 57)
     driver.put_DeviceSingleSetting('UserPassword', 30)
     driver.put_DeviceSingleSetting('Port', 'USB$' + sys.argv[1])
@@ -102,6 +119,8 @@ def aReport(mode, type):
     setMode(mode)
     driver.put_ReportType(type)
     driver.Report()
+    errorCheck()
+    driver.GetCurrentStatus()
     errorCheck()
 
 def check(data):
@@ -168,7 +187,7 @@ def check(data):
     driver.GetRegister()
     fn = str(driver.get_SerialNumber()).strip()
 
-    driver.GetStatus()
+    driver.GetCurrentStatus()
     errorCheck()
 
     return str(fn).zfill(16) + ':' + str(fp).zfill(10)
@@ -236,7 +255,8 @@ def correction(data):
     driver.put_Summ(data['sum'])
     driver.CloseCheck()
     errorCheck()
-    driver.GetStatus()
+
+    driver.GetCurrentStatus()
     errorCheck()
 
 def beep():
@@ -259,17 +279,7 @@ def processMessage(client, server, message):
         data = json.loads(message)
 
         if (data['method'] == 'ping'):
-            # Дергается время от времени, что-бы проверить не отвалился-ли ФР
-            driver.GetCurrentStatus()
-            errorCheck(True)
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': 'pong', 'opened': driver.get_SessionOpened() }))
-            return
-
-        if (data['method'] == 'status'):
-            # Дергается перед пробитием чека, что-бы проверить не отвалился-ли ФР
-            driver.GetStatus()
-            errorCheck(True)
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'opened': driver.get_SessionOpened() }))
             return
 
         if (data['method'] == 'check'):
@@ -286,8 +296,6 @@ def processMessage(client, server, message):
             # Z-Отчет
             setFiscalProperty(1021, 5, data['cashier'])
             aReport(3, 1)
-            driver.GetStatus()
-            errorCheck()
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'opened': driver.get_SessionOpened() }))
             return
             
@@ -308,7 +316,7 @@ def processMessage(client, server, message):
             setFiscalProperty(1021, 5, data['cashier'])
             driver.OpenSession()
             errorCheck()
-            driver.GetStatus()
+            driver.GetCurrentStatus()
             errorCheck()
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'opened': driver.get_SessionOpened() }))
             return
@@ -321,7 +329,7 @@ def processMessage(client, server, message):
             driver.put_Summ(data['cash'])
             driver.CashIncome()
             errorCheck()
-            driver.GetStatus()
+            driver.GetCurrentStatus()
             errorCheck()
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'opened': driver.get_SessionOpened() }))
             return
@@ -362,19 +370,11 @@ def serviceShutdown(signum, frame):
     exit = True
     sys.exit()
 
-class Runner(Thread):
-    def run(self):
-        while not exit:
-            if queue.qsize() > 0:
-                job = queue.get()
-                for i in server.clients:
-                    if i['id'] == job['client']:
-                        processMessage(i, server, job['message'])
-            else:
-                time.sleep(0.1)
-
 try:
-    init()
+    signal.signal(signal.SIGTERM, serviceShutdown)
+    signal.signal(signal.SIGINT, serviceShutdown)    
+
+    fptrInit()
 
     # 2x20 - две строки по 20 символов
     display('****************************************')
@@ -384,9 +384,6 @@ try:
 
     server = WebsocketServer(9111, '0.0.0.0')
     server.set_fn_message_received(messageReceived)
-
-    signal.signal(signal.SIGTERM, serviceShutdown)
-    signal.signal(signal.SIGINT, serviceShutdown)    
 
     server.run_forever()
 
