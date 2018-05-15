@@ -323,10 +323,10 @@ def processMessage(client, server, message):
 
         if (data['method'] == 'cash_in'):
             setMode(1)
-            driver.CancelCheck()
             setFiscalProperty(1021, 5, data['cashier'])
             driver.OpenSession()
             # на ошибки не проверяем, смена может быть уже открыта
+            driver.CancelCheck()
             driver.put_Summ(data['cash'])
             driver.CashIncome()
             errorCheck()
@@ -337,7 +337,6 @@ def processMessage(client, server, message):
 
         if (data['method'] == 'cash_out'):
             setMode(1)
-            driver.CancelCheck()
             driver.put_Summ(data['cash'])
             driver.CashOutcome()
             errorCheck()
