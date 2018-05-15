@@ -322,11 +322,11 @@ def processMessage(client, server, message):
             return
 
         if (data['method'] == 'cash_in'):
+            driver.CancelCheck()
             setMode(1)
             setFiscalProperty(1021, 5, data['cashier'])
             driver.OpenSession()
             # на ошибки не проверяем, смена может быть уже открыта
-            driver.CancelCheck()
             driver.put_Summ(data['cash'])
             driver.CashIncome()
             errorCheck()
