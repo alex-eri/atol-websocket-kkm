@@ -15,11 +15,20 @@ if [ "$atol" != "" ]; then
     port=`dmesg | grep ttyACM | grep "$atol" | cut -d ":" -f 3 | tail -n 2 | head -n 1 | xargs`
 fi
 
+disp_mode=0
 disp=`dmesg | grep Posiflex | grep usb | cut -d "]" -f 2 | cut -d ":" -f 1 | cut -d "b" -f 2 | tail -n 1 | xargs`
 if [ "$disp" != "" ]; then
-    disp=`dmesg | grep ttyACM | grep "$disp" | cut -d ":" -f 3 | tail -n 1 | xargs`
+    disp=`dmesg | grep 'ttyACM\|ttyUSB' | grep "$disp" | cut -d ":" -f 3 | tail -n 1 | xargs`
+    disp_mode=1
+fi
+if [ "$disp" == "" ]; then
+    disp=`dmesg | grep 2303 | grep usb | cut -d "]" -f 2 | cut -d ":" -f 1 | cut -d "b" -f 2 | tail -n 1 | xargs`
+    if [ "$disp" != "" ]; then
+	    disp=`dmesg | grep ttyUSB | grep "$disp" | cut -d " " -f 9 | tail -n 1 | xargs`
+	    disp_mode=2
+    fi
 fi
 
 if [[ "$atol" != "" && "$port" != "" && -e "/dev/$port" ]]; then
-    ./driver.py $atol $disp
+    ./driver.py $atol $disp $disp_mode
 fi

@@ -148,6 +148,9 @@ def check(data):
     # Email или телефон покупателя (ОФД отправит электронный чек)
     if (data['report']):
         setFiscalProperty(1008, 5, data['report'])
+    # Для электронной оплаты наличность в кассе не проверяем
+    if (data['payment_type'] == 1):
+        driver.put_EnableCheckSumm(False)
     # Позици чека
     for p in data['positions']:
         # Наименование товара
@@ -268,7 +271,8 @@ def display(caption):
         p = serial.Serial('/dev/' + sys.argv[2], 9600)
         try:
             # Инициализация PD2800 в режиме протокола EPSON
-            p.write('\x1B\x3D\x02\x1B\x74\x06\x1B\x52\x00\x0C' + str(caption).encode('cp866'))
+#            p.write('\x1B\x3D\x02\x1B\x74\x06\x1B\x52\x00\x0C' + str(caption).encode('cp866'))
+            p.write('\x1B\x74\x06\x0C' + str(caption).encode('cp866'))
             p.flushOutput()
             p.close()
         except:
@@ -283,16 +287,19 @@ def processMessage(client, server, message):
             return
 
         if (data['method'] == 'check'):
+            driver.CancelCheck()
             # Пробить чек
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': check(data['data']), 'opened': driver.get_SessionOpened() }))
             return
 
         if (data['method'] == 'correction'):
+            driver.CancelCheck()
             # Пробить чек коррекции
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': correction(data['data']), 'opened': driver.get_SessionOpened() }))
             return
 
         if (data['method'] == 'report_z'):
+            driver.CancelCheck()
             # Z-Отчет
             setFiscalProperty(1021, 5, data['cashier'])
             aReport(3, 1)
@@ -300,18 +307,21 @@ def processMessage(client, server, message):
             return
             
         if (data['method'] == 'report_x'):
+            driver.CancelCheck()
             # X-Отчет
             aReport(2, 2)
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
             return
 
         if (data['method'] == 'report_c'):
+            driver.CancelCheck()
             # Отчет по кассирам
             aReport(2, 8)
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
             return
 
         if (data['method'] == 'open'):
+            driver.CancelCheck()
             setMode(1)
             setFiscalProperty(1021, 5, data['cashier'])
             driver.OpenSession()
@@ -336,6 +346,7 @@ def processMessage(client, server, message):
             return
 
         if (data['method'] == 'cash_out'):
+            driver.CancelCheck()
             setMode(1)
             driver.put_Summ(data['cash'])
             driver.CashOutcome()
