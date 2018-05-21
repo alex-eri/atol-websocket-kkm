@@ -11,7 +11,7 @@ DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
 cd $DIR
 
 if [ $DIR == "/opt/atol" ]; then
-    ./update
+    git pull
 fi
 
 atol=`dmesg | grep ATOL | grep USB | cut -d "]" -f 2 | cut -d ":" -f 1 | cut -d "b" -f 2 | tail -n 1 | xargs`
