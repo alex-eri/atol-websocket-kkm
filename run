@@ -19,7 +19,7 @@ if [ "$atol" != "" ]; then
     port=`dmesg | grep ttyACM | grep "$atol" | cut -d ":" -f 3 | tail -n 2 | head -n 1 | xargs`
 fi
 
-disp_mode=0
+disp_mode=""
 disp=`dmesg | grep Posiflex | grep usb | cut -d "]" -f 2 | cut -d ":" -f 1 | cut -d "b" -f 2 | tail -n 1 | xargs`
 if [ "$disp" != "" ]; then
     disp=`dmesg | grep 'ttyACM\|ttyUSB' | grep "$disp" | cut -d ":" -f 3 | tail -n 1 | xargs`
