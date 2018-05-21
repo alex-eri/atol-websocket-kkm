@@ -10,9 +10,7 @@ DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
 
 cd $DIR
 
-echo $DIR
-
-if [ "$DIR" == "/opt/atol" ]; then
+if [ "$DIR" == "/opt/atol-websocket-kkm" ]; then
     git pull
 fi
 
