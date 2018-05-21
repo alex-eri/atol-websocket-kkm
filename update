@@ -8,4 +8,4 @@ git pull
 
 service atol-kkm start
 
-systemctl -l status atol-kkm
+#systemctl -l status atol-kkm
