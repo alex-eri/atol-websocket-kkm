@@ -23,6 +23,7 @@ driver = dto9fptr.Fptr('./fptr/libfptr.so', 15)
 
 queue = Queue()
 exit = False
+fn = ""
 
 class EFptrException(Exception):
     pass
@@ -88,6 +89,7 @@ def font(f):
     setTableValue(2, 1, 32, 0, f)
 
 def fptrInit():
+    global fn
     driver.put_DeviceSingleSetting('Model', 57)
     driver.put_DeviceSingleSetting('UserPassword', 30)
     driver.put_DeviceSingleSetting('Port', 'USB$' + sys.argv[1])
@@ -112,6 +114,11 @@ def fptrInit():
     setTableValue(2, 1, 15, 0, '0')
     # Шрифт
     font(3)
+    # Серийник ФН
+    driver.put_RegisterNumber(47)
+    driver.GetRegister()
+    errorCheck()
+    fn = str(driver.get_SerialNumber()).strip().zfill(16)
     # Все норм, бибикаем
     beep()
 
@@ -180,20 +187,11 @@ def check(data):
     # Закрытие чека.
     driver.CloseCheck()
     errorCheck()
-    # Дата/Время последнего чека, тип чека, номер ФД чека, сумма чека, ФП
+    # номер ФД чека
     driver.put_RegisterNumber(51)
     driver.GetRegister()
-    #fd = str(driver.get_DocNumber()).strip()
-    fp = str(driver.get_Value()).strip()
-    # Серийник ФН
-    driver.put_RegisterNumber(47)
-    driver.GetRegister()
-    fn = str(driver.get_SerialNumber()).strip()
-
-    driver.GetCurrentStatus()
-    errorCheck()
-
-    return str(fn).zfill(16) + ':' + str(fp).zfill(10)
+    fp = str(driver.get_Value()).strip().split('.')[0].zfill(10)
+    return fn + ':' + fp
 
 def correction(data):
     # Режим регистрации
@@ -270,9 +268,14 @@ def display(caption):
     if len(sys.argv) > 2:
         p = serial.Serial('/dev/' + sys.argv[2], 9600)
         try:
-            # Инициализация PD2800 в режиме протокола EPSON
-#            p.write('\x1B\x3D\x02\x1B\x74\x06\x1B\x52\x00\x0C' + str(caption).encode('cp866'))
-            p.write('\x1B\x74\x06\x0C' + str(caption).encode('cp866'))
+            model = 1
+            if len(sys.argv > 3):
+                model = sys.argv[3]
+            if model == 1:
+                p.write('\x1B\x3D\x02\x1B\x74\x06\x1B\x52\x00\x0C')
+            else:
+                p.write('\x1B\x3D\x02\x1B\x74\x07\x1B\x52\x00\x0C')
+            p.write(str(caption).encode('cp866'))
             p.flushOutput()
             p.close()
         except:
@@ -283,7 +286,7 @@ def processMessage(client, server, message):
         data = json.loads(message)
 
         if (data['method'] == 'ping'):
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': 'pong', 'opened': driver.get_SessionOpened() }))
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': 'pong', 'opened': driver.get_SessionOpened(), 'fn': fn }))
             return
 
         if (data['method'] == 'check'):
@@ -356,10 +359,7 @@ def processMessage(client, server, message):
 
         if (data['method'] == 'fn'):
             # Серийник ФН
-            driver.put_RegisterNumber(47)
-            driver.GetRegister()
-            errorCheck()
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': str(driver.get_SerialNumber()).strip() }))
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': fn }))
             return
 
         if (data['method'] == 'display'):
