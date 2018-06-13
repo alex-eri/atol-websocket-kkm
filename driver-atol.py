@@ -109,7 +109,7 @@ def fptrInit():
     # Шаблон чека №1
     setTableValue(2, 1, 111, 0, '1')
     # Яркость печати
-    setTableValue(2, 1, 19, 0, '13')
+    setTableValue(2, 1, 19, 0, '7')
     # Отключаем печать названия секции
     setTableValue(2, 1, 15, 0, '0')
     # Шрифт
@@ -119,6 +119,8 @@ def fptrInit():
     driver.GetRegister()
     errorCheck()
     fn = str(driver.get_SerialNumber()).strip().zfill(16)
+    driver.GetStatus()
+    errorCheck()
     # Все норм, бибикаем
     beep()
 
@@ -131,17 +133,18 @@ def aReport(mode, type):
     errorCheck()
 
 def check(data):
+    # Печать перед основным чеком
+    if ('slip' in data and data['slip']):
+        frPrint(data['slip'])
     # Режим регистрации
     setMode(1)
-    # Картинка из памяти
-    #driver.put_PictureNumber(2)
-    #driver.put_LeftMargin(120)
-    #driver.PrintPictureByNumber()
-    #errorCheck()
-    # Имя и должность кассира
-    if (data['cashier']):
+    # Имя кассира
+    if ('cashier' in data and data['cashier']):
         setFiscalProperty(1021, 5, data['cashier'])
-    # Метод выполняет GetStatus(), SetMode(), CancelCheck() см. руководство программиста
+    # ИНН кассира
+    if ('cashier_inn' in data and data['cashier_inn']):
+        setFiscalProperty(1018, 5, data['cashier_inn'])
+    # Метод выполняет GetStatus(), SetMode(), CancelCheck()
     driver.NewDocument()
     errorCheck()
     # Тип чека
@@ -149,14 +152,17 @@ def check(data):
     # Открытие чека
     driver.OpenCheck()
     errorCheck()
-    # Имя и должность кассира
-    if (data['cashier']):
+    # Имя кассира (повторяем еще раз, если перый раз ушел в открытие смены)
+    if ('cashier' in data and data['cashier']):
         setFiscalProperty(1021, 5, data['cashier'])
+    # ИНН кассира (повторяем еще раз, если перый раз ушел в открытие смены)
+    if ('cashier_inn' in data and data['cashier_inn']):
+        setFiscalProperty(1018, 5, data['cashier_inn'])
     # Email или телефон покупателя (ОФД отправит электронный чек)
-    if (data['report']):
+    if ('report' in data and data['report']):
         setFiscalProperty(1008, 5, data['report'])
-    # Для электронной оплаты наличность в кассе не проверяем
-    if (data['payment_type'] == 1):
+    # Наличность в кассе проверяем только для наличной оплаты (0)
+    if (data['payment_type'] >= 1):
         driver.put_EnableCheckSumm(False)
     # Позици чека
     for p in data['positions']:
@@ -177,6 +183,13 @@ def check(data):
         # Регистрация позиции
         driver.Registration()
         errorCheck()
+    # Номер исходного документа (при возврате или платеже для исправления ошибки кассира)
+    if ('reason' in data and data['reason']):
+        driver.put_FiscalPropertyNumber(1192)
+        driver.put_FiscalPropertyType(5)
+        driver.put_FiscalPropertyValue(data['reason'])
+        driver.AddFiscalProperty()
+        errorCheck()
     # Тип оплаты
     driver.put_TypeClose(data['payment_type'])
     # Сумма оплаты
@@ -184,14 +197,20 @@ def check(data):
     # Регистрация платежа
     driver.Payment()
     errorCheck()
+    # Сдача
+    change = driver.get_Change()
     # Закрытие чека.
     driver.CloseCheck()
     errorCheck()
-    # номер ФД чека
+    # Номер ФД чека
     driver.put_RegisterNumber(51)
     driver.GetRegister()
     fp = str(driver.get_Value()).strip().split('.')[0].zfill(10)
-    return fn + ':' + fp
+    # В зависимости от версии либо строка либо массив
+    if ('version' in data and data['version'] == 2):
+        return { 'check': fn + ':' + fp, 'change': change, 'version': 2 }
+    else:
+        return fn + ':' + fp
 
 def correction(data):
     # Режим регистрации
@@ -264,29 +283,21 @@ def beep():
     driver.Beep()
     errorCheck()
 
-def display(caption):
-    if len(sys.argv) > 2:
-        p = serial.Serial('/dev/' + sys.argv[2], 9600)
-        try:
-            model = 1
-            if len(sys.argv > 3):
-                model = sys.argv[3]
-            if model == 1:
-                p.write('\x1B\x3D\x02\x1B\x74\x06\x1B\x52\x00\x0C')
-            else:
-                p.write('\x1B\x3D\x02\x1B\x74\x07\x1B\x52\x00\x0C')
-            p.write(str(caption).encode('cp866'))
-            p.flushOutput()
-            p.close()
-        except:
-            pass
+def frPrint(lines):
+    for l in lines:
+        if len(l) > 0 and ord(l[0]) == 1:
+            driver.FullCut()
+        else:
+            driver.put_Caption(l)
+            driver.PrintString()
+    
 
 def processMessage(client, server, message):
     try:
         data = json.loads(message)
 
         if (data['method'] == 'ping'):
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': 'pong', 'opened': driver.get_SessionOpened(), 'fn': fn }))
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': 'pong', 'opened': driver.get_SessionOpened(), 'fn': fn, 'version': 2 }))
             return
 
         if (data['method'] == 'check'):
@@ -357,17 +368,22 @@ def processMessage(client, server, message):
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
             return
 
+        if (data['method'] == 'cancel'):
+            driver.CancelCheck()
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
+            return
+
+        if (data['method'] == 'print'):
+            driver.CancelCheck()
+            frPrint(data['data'])
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
+            return
+
         if (data['method'] == 'fn'):
             # Серийник ФН
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': fn }))
             return
 
-        if (data['method'] == 'display'):
-            # Вывести что-то на дисплей покупателя
-            display(data['data'])
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
-            return
-            
         server.send_message(client, json.dumps({ 'result': 'ERR', 'method': data['method'], 'type': 'invalid', 'value': 'Unknown method' }))
 
     except Exception as e:
@@ -387,9 +403,6 @@ try:
     signal.signal(signal.SIGINT, serviceShutdown)    
 
     fptrInit()
-
-    # 2x20 - две строки по 20 символов
-    display('****************************************')
 
     runner = Runner()
     runner.start()

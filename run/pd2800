@@ -1,0 +1,32 @@
+#!/bin/bash
+
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do 
+    DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+    SOURCE="$(readlink "$SOURCE")"
+    [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+
+cd $DIR/..
+
+disp_mode=""
+disp=`dmesg | grep Posiflex | grep usb | cut -d "]" -f 2 | cut -d ":" -f 1 | cut -d "b" -f 2 | tail -n 1 | xargs`
+if [ "$disp" != "" ]; then
+    disp=`dmesg | grep ttyACM | grep "$disp" | cut -d ":" -f 3 | tail -n 1 | xargs`
+    disp_mode=1
+fi
+if [ "$disp" == "" ]; then
+    disp=`dmesg | grep pl2303 | grep converter | grep attached | awk '{print $NF}' | tail -n 1 | xargs`
+    if [ "$disp" != "" ]; then
+    	disp_mode=2
+    fi
+fi
+if [ ! -e "/dev/$disp" ]; then
+    disp=""
+    disp_mode=""
+fi
+
+if [ "$disp" != "" ]; then
+    ./driver-pd2800.py $disp $disp_mode
+fi

@@ -1,0 +1,30 @@
+#!/bin/bash
+
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do 
+    DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+    SOURCE="$(readlink "$SOURCE")"
+    [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+
+cd $DIR/..
+
+term=`dmesg | grep VeriFone | grep usb | cut -d "]" -f 2 | cut -d ":" -f 1 | cut -d "b" -f 2 | tail -n 1 | xargs`
+if [ "$term" != "" ]; then
+    term=`dmesg | grep ttyACM | grep "$term" | cut -d ":" -f 3 | tail -n 1 | xargs`
+    if [ -e "/dev/$term" ]; then
+        rm /dev/ttyS61 2>/dev/null
+        ln -sf /dev/$term /dev/ttyS61 2>/dev/null
+    else
+        term=""
+    fi
+fi
+
+mkdir /tmp/sb_pilot 2>/dev/null
+cp ./sb_pilot/sb_pilot /tmp/sb_pilot/sb_pilot 2>/dev/null
+cp ./sb_pilot/pinpad.ini /tmp/sb_pilot/pinpad.ini 2>/dev/null
+
+if [ "$term" != "" ]; then
+    ./driver-sb.py
+fi

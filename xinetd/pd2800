@@ -1,0 +1,14 @@
+# если надо разделить фискальник на два рабочих места, используем xinetd в качестве прокси
+
+service pd2800
+{
+    disable = no
+    type = UNLISTED
+    socket_type = stream
+    protocol = tcp
+    wait = no
+    redirect = 192.168.10.254 9112
+    bind = 127.0.0.1
+    port = 9112
+    user = nobody
+}

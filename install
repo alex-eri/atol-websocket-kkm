@@ -1,14 +1,35 @@
 #!/bin/bash
 
-ln -sf /opt/atol-websocket-kkm /opt/atol
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do 
+    DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+    SOURCE="$(readlink "$SOURCE")"
+    [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
 
 apt-get -y purge modemmanager
 apt-get install python-serial
 
-cp service /etc/systemd/system/atol-kkm.service
+cd $DIR
+
+echo $DIR
+
+cp services/atol /etc/systemd/system/atol-kkm.service
+echo ExecStart $DIR/run/atol >>/etc/systemd/system/atol-kkm.service
+
+cp services/pd2800 /etc/systemd/system/pd2800-kkm.service
+echo ExecStart $DIR/run/pd2800 >>/etc/systemd/system/atol-kkm.service
+
+cp services/sb /etc/systemd/system/sb-kkm.service
+echo ExecStart $DIR/run/sb >>/etc/systemd/system/atol-kkm.service
 
 systemctl daemon-reload
-systemctl enable atol-kkm
-systemctl start atol-kkm
 
-systemctl -l status atol-kkm
+systemctl enable atol-kkm
+systemctl enable pd2800-kkm
+systemctl enable sb-kkm
+
+systemctl start atol-kkm
+systemctl start pd2800-kkm
+systemctl start sb-kkm
