@@ -285,7 +285,8 @@ def beep():
 
 def frPrint(lines):
     for l in lines:
-        if len(l) > 0 and ord(l[0]) == 1:
+#        if len(l) > 0 and ord(l[0]) == 1:
+        if (len(l) > 0 and ord(l[0]) == 1) or (len(l) > 0 and len(l) < 5 and l.find('@') > 0):
             driver.FullCut()
         else:
             driver.put_Caption(l)
