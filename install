@@ -16,13 +16,13 @@ cd $DIR
 echo $DIR
 
 cp services/atol /etc/systemd/system/atol-kkm.service
-echo ExecStart $DIR/run/atol >>/etc/systemd/system/atol-kkm.service
+echo ExecStart=$DIR/run/atol >>/etc/systemd/system/atol-kkm.service
 
 cp services/pd2800 /etc/systemd/system/pd2800-kkm.service
-echo ExecStart $DIR/run/pd2800 >>/etc/systemd/system/pd2800-kkm.service
+echo ExecStart=$DIR/run/pd2800 >>/etc/systemd/system/pd2800-kkm.service
 
 cp services/sb /etc/systemd/system/sb-kkm.service
-echo ExecStart $DIR/run/sb >>/etc/systemd/system/sb-kkm.service
+echo ExecStart=$DIR/run/sb >>/etc/systemd/system/sb-kkm.service
 
 systemctl daemon-reload
 
