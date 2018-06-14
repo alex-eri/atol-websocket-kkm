@@ -1,0 +1,6 @@
+#!/bin/bash
+
+systemctl daemon-reload
+
+systemctl disable atol-kkm
+systemctl stop atol-kkm
