@@ -166,6 +166,7 @@ def check(data):
         driver.put_EnableCheckSumm(False)
     # Позици чека
     for p in data['positions']:
+        # Штрихкод (серийный номер), если есть
         if ('barcode' in p and p['barcode']):
             driver.put_Caption(p['barcode'])
             driver.PrintString()
