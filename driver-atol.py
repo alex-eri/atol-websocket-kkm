@@ -166,6 +166,9 @@ def check(data):
         driver.put_EnableCheckSumm(False)
     # Позици чека
     for p in data['positions']:
+        if ('barcode' in p and p['barcode']):
+            driver.put_Caption(p['barcode'])
+            driver.PrintString()
         # Наименование товара
         driver.put_Name(p['name'])
         # Цена товара
