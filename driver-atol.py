@@ -289,7 +289,6 @@ def beep():
 
 def frPrint(lines):
     for l in lines:
-#        if len(l) > 0 and ord(l[0]) == 1:
         if (len(l) > 0 and ord(l[0]) == 1) or (len(l) > 0 and len(l) < 5 and l.find('@') > 0):
             driver.FullCut()
         else:
@@ -301,20 +300,25 @@ def processMessage(client, server, message):
     try:
         data = json.loads(message)
 
+        if ('refer' in data and data['refer']):
+            refer = data['refer']
+        else:
+            refer = False
+
         if (data['method'] == 'ping'):
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': 'pong', 'opened': driver.get_SessionOpened(), 'fn': fn, 'version': 2 }))
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': 'pong', 'opened': driver.get_SessionOpened(), 'fn': fn, 'version': 2, 'refer': refer }))
             return
 
         if (data['method'] == 'check'):
             driver.CancelCheck()
             # Пробить чек
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': check(data['data']), 'opened': driver.get_SessionOpened() }))
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': check(data['data']), 'opened': driver.get_SessionOpened(), 'refer': refer }))
             return
 
         if (data['method'] == 'correction'):
             driver.CancelCheck()
             # Пробить чек коррекции
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': correction(data['data']), 'opened': driver.get_SessionOpened() }))
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': correction(data['data']), 'opened': driver.get_SessionOpened(), 'refer': refer }))
             return
 
         if (data['method'] == 'report_z'):
@@ -322,21 +326,21 @@ def processMessage(client, server, message):
             # Z-Отчет
             setFiscalProperty(1021, 5, data['cashier'])
             aReport(3, 1)
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'opened': driver.get_SessionOpened() }))
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'opened': driver.get_SessionOpened(), 'refer': refer }))
             return
             
         if (data['method'] == 'report_x'):
             driver.CancelCheck()
             # X-Отчет
             aReport(2, 2)
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'refer': refer }))
             return
 
         if (data['method'] == 'report_c'):
             driver.CancelCheck()
             # Отчет по кассирам
             aReport(2, 8)
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'refer': refer }))
             return
 
         if (data['method'] == 'open'):
@@ -347,7 +351,7 @@ def processMessage(client, server, message):
             errorCheck()
             driver.GetCurrentStatus()
             errorCheck()
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'opened': driver.get_SessionOpened() }))
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'opened': driver.get_SessionOpened(), 'refer': refer }))
             return
 
         if (data['method'] == 'cash_in'):
@@ -361,7 +365,7 @@ def processMessage(client, server, message):
             errorCheck()
             driver.GetCurrentStatus()
             errorCheck()
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'opened': driver.get_SessionOpened() }))
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'opened': driver.get_SessionOpened(), 'refer': refer }))
             return
 
         if (data['method'] == 'cash_out'):
@@ -370,26 +374,26 @@ def processMessage(client, server, message):
             driver.put_Summ(data['cash'])
             driver.CashOutcome()
             errorCheck()
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'refer': refer }))
             return
 
         if (data['method'] == 'cancel'):
             driver.CancelCheck()
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'refer': refer }))
             return
 
         if (data['method'] == 'print'):
             driver.CancelCheck()
             frPrint(data['data'])
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'] }))
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'refer': refer }))
             return
 
         if (data['method'] == 'fn'):
             # Серийник ФН
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': fn }))
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': fn, 'refer': refer }))
             return
 
-        server.send_message(client, json.dumps({ 'result': 'ERR', 'method': data['method'], 'type': 'invalid', 'value': 'Unknown method' }))
+        server.send_message(client, json.dumps({ 'result': 'ERR', 'method': data['method'], 'type': 'invalid', 'value': 'Unknown method', 'refer': refer }))
 
     except Exception as e:
         server.send_message(client, json.dumps({ 'result': 'ERR', 'type': type(e).__name__, 'value': e.args[0] }))
