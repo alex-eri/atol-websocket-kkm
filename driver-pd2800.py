@@ -24,7 +24,7 @@ def display(caption):
         try:
             model = 1
             if len(sys.argv) > 2:
-                model = sys.argv[2]
+                model = int(sys.argv[2])
             if model == 1:
                 p.write('\x1B\x3D\x02\x1B\x74\x06\x1B\x52\x00\x0C')
             else:
