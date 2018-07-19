@@ -124,13 +124,32 @@ def fptrInit():
     # Все норм, бибикаем
     beep()
 
-def aReport(mode, type):
+def aReport(mode, type, data):
+    # Имя кассира
+    if ('cashier' in data and data['cashier']):
+        setFiscalProperty(1021, 5, data['cashier'], False)
+    # ИНН кассира
+    if ('cashier_inn' in data and data['cashier_inn']):
+        setFiscalProperty(1018, 5, data['cashier_inn'], False)
     setMode(mode)
     driver.put_ReportType(type)
     driver.Report()
     errorCheck()
     driver.GetCurrentStatus()
     errorCheck()
+
+    driver.put_RegisterNumber(52)
+    driver.GetRegister()
+    fp = str(driver.get_Value()).strip().split('.')[0].zfill(10)
+
+    driver.GetCurrentStatus()
+    errorCheck()
+
+    # В зависимости от версии либо строка либо массив
+    if ('version' in data and data['version'] == 2):
+        return { 'check': fn + ':' + fp, 'change': 0, 'version': 2 }
+    else:
+        return fn + ':' + fp
 
 def check(data):
     # Печать перед основным чеком
@@ -140,10 +159,10 @@ def check(data):
     setMode(1)
     # Имя кассира
     if ('cashier' in data and data['cashier']):
-        setFiscalProperty(1021, 5, data['cashier'])
+        setFiscalProperty(1021, 5, data['cashier'], False)
     # ИНН кассира
     if ('cashier_inn' in data and data['cashier_inn']):
-        setFiscalProperty(1018, 5, data['cashier_inn'])
+        setFiscalProperty(1018, 5, data['cashier_inn'], False)
     # Метод выполняет GetStatus(), SetMode(), CancelCheck()
     driver.NewDocument()
     errorCheck()
@@ -154,10 +173,10 @@ def check(data):
     errorCheck()
     # Имя кассира (повторяем еще раз, если перый раз ушел в открытие смены)
     if ('cashier' in data and data['cashier']):
-        setFiscalProperty(1021, 5, data['cashier'])
+        setFiscalProperty(1021, 5, data['cashier'], False)
     # ИНН кассира (повторяем еще раз, если перый раз ушел в открытие смены)
     if ('cashier_inn' in data and data['cashier_inn']):
-        setFiscalProperty(1018, 5, data['cashier_inn'])
+        setFiscalProperty(1018, 5, data['cashier_inn'], False)
     # Email или телефон покупателя (ОФД отправит электронный чек)
     if ('report' in data and data['report']):
         setFiscalProperty(1008, 5, data['report'])
@@ -166,7 +185,7 @@ def check(data):
         driver.put_EnableCheckSumm(False)
     # Позици чека
     for p in data['positions']:
-        # Штрихкод (серийный номер), если есть
+        # Штрихкод (серийный номер, uid или прочий идентификатор), если есть
         if ('barcode' in p and p['barcode']):
             driver.put_Caption(p['barcode'])
             driver.PrintString()
@@ -210,78 +229,15 @@ def check(data):
     driver.put_RegisterNumber(51)
     driver.GetRegister()
     fp = str(driver.get_Value()).strip().split('.')[0].zfill(10)
+
+    driver.GetCurrentStatus()
+    errorCheck()
+
     # В зависимости от версии либо строка либо массив
     if ('version' in data and data['version'] == 2):
         return { 'check': fn + ':' + fp, 'change': change, 'version': 2 }
     else:
         return fn + ':' + fp
-
-def correction(data):
-    # Режим регистрации
-    setMode(1)
-    driver.NewDocument()
-    driver.put_CheckType(7)
-    driver.put_PrintCheck(1)
-    driver.OpenCheck()
-    errorCheck()
-
-    # Имя и должность кассира
-    if (data['cashier']):
-        setFiscalProperty(1021, 5, data['cashier'])
-
-    driver.put_Name('Коррекция прихода')
-    driver.put_Price(data['sum'])
-    driver.put_Quantity(1)
-    driver.put_PositionSum(data['sum'])
-
-    # Тип коррекции: 0 - самостоятельно, 1 - по предписанию
-    setFiscalProperty(1173, 1, data['type'], False)
-
-    # Основание для коррекции
-    # Составной тег
-
-    driver.BeginFormFiscalProperty()
-
-    # Добавление тега 1177 к составному тегу
-    # Документ
-
-    driver.put_FiscalPropertyNumber(1177)
-    driver.put_FiscalPropertyType(5)
-    driver.put_FiscalPropertyValue(data['document'])
-    driver.AddFiscalProperty()
-
-    # Добавление тега 1178 к составному тегу
-    # время в UnixTime
-
-    driver.put_FiscalPropertyNumber(1178)
-    driver.put_FiscalPropertyType(4)
-    driver.put_FiscalPropertyValue(data['unixtime'])
-    driver.AddFiscalProperty()
-
-    # Добавление тега 1179 к составному тегу
-    # Номер документа
-
-    driver.put_FiscalPropertyNumber(1179)
-    driver.put_FiscalPropertyType(5)
-    driver.put_FiscalPropertyValue(data['number'])
-    driver.AddFiscalProperty()
-
-    driver.EndFormFiscalProperty()
-
-    # Запись тега 1174
-    setFiscalProperty(1174, 0, driver.get_FiscalPropertyValue(), False)
-
-    driver.put_TaxNumber(data['tax'])
-    driver.Registration()
-    errorCheck()
-
-    driver.put_TypeClose(0)
-    driver.put_Summ(data['sum'])
-    driver.CloseCheck()
-    errorCheck()
-
-    driver.GetCurrentStatus()
-    errorCheck()
 
 def beep():
     driver.Beep()
@@ -315,31 +271,23 @@ def processMessage(client, server, message):
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': check(data['data']), 'opened': driver.get_SessionOpened(), 'refer': refer }))
             return
 
-        if (data['method'] == 'correction'):
-            driver.CancelCheck()
-            # Пробить чек коррекции
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': correction(data['data']), 'opened': driver.get_SessionOpened(), 'refer': refer }))
-            return
-
         if (data['method'] == 'report_z'):
             driver.CancelCheck()
             # Z-Отчет
-            setFiscalProperty(1021, 5, data['cashier'])
-            aReport(3, 1)
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'opened': driver.get_SessionOpened(), 'refer': refer }))
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': aReport(3, 1, data), 'opened': driver.get_SessionOpened(), 'refer': refer }))
             return
             
         if (data['method'] == 'report_x'):
             driver.CancelCheck()
             # X-Отчет
-            aReport(2, 2)
+            aReport(2, 2, data)
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'refer': refer }))
             return
 
         if (data['method'] == 'report_c'):
             driver.CancelCheck()
             # Отчет по кассирам
-            aReport(2, 8)
+            aReport(2, 8, data)
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'refer': refer }))
             return
 
