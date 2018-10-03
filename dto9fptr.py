@@ -2219,3 +2219,27 @@ class Fptr(dto9base.DTO9Base):
         if self._exec_method('ExecSystemOperation') is None:
             self._print_result(inspect.currentframe().f_code.co_name)
         return self.get_Result()
+
+    def put_JournalDataType(self, value):
+        if self._set_int('JournalDataType', value) is None:
+            self._print_result(inspect.currentframe().f_code.co_name)
+        return self.get_Result()
+
+    def get_JournalDataType(self):
+        return self._get_int('JournalDataType')
+
+    def put_JournalAttributesType(self, value):
+        if self._set_int('JournalAttributesType', value) is None:
+            self._print_result(inspect.currentframe().f_code.co_name)
+        return self.get_Result()
+
+    def get_JournalAttributesType(self):
+        return self._get_int('JournalAttributesType')
+
+    def get_JournalDocumentType(self):
+        return self._get_int('JournalDocumentType')
+
+    def GetJournalStatus(self):
+        if self._exec_method('GetJournalStatus') is None:
+            self._print_result(inspect.currentframe().f_code.co_name)
+        return self.get_Result()

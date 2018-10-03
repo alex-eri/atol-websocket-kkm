@@ -57,7 +57,7 @@ class DTO9Base(object):
 
     def _print_result(self, name):
         s = '%s: [%d]' % (name, self.get_ResultCode())
-#        print(s)
+        print(s)
 
     def _getter_name(self, prop):
         return 'get_%s' % prop
