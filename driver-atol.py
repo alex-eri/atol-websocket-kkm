@@ -9,9 +9,7 @@ import time
 from multiprocessing import Queue
 from threading import Thread
 
-import serial
-
-import dto9fptr
+from libfptr10 import IFptr
 from websocket_server import WebsocketServer
 
 if sys.version[0] == '2':
@@ -19,7 +17,7 @@ if sys.version[0] == '2':
 #pylint: disable-msg=E1101
     sys.setdefaultencoding("utf-8")
 
-driver = dto9fptr.Fptr('./fptr/libfptr.so', 15)
+fptr = IFptr("fptr/libfptr10.so")
 
 queue = Queue()
 exit = False
@@ -34,7 +32,8 @@ class Runner(Thread):
         while not exit:
             a = a + 1
             if a > 50:
-                driver.GetCurrentStatus()
+                fptr.setParam(IFptr.LIBFPTR_PARAM_DATA_TYPE, IFptr.LIBFPTR_DT_STATUS)
+                fptr.queryData()
                 errorCheck(True)
                 a = 0
             if queue.qsize() > 0:
@@ -47,7 +46,8 @@ class Runner(Thread):
 
 def errorCheck(exitIfFail = False):
     global exit
-    if driver.get_ResultCode() != 0:
+
+    if fptr.errorCode() != 0:
         if (exitIfFail):
             try:
                 try:
@@ -58,96 +58,85 @@ def errorCheck(exitIfFail = False):
             except:
                 pass
         else:
-            raise EFptrException(driver.get_ResultDescription())
+            raise EFptrException('[' + str(fptr.errorCode()) + '] ' + fptr.errorDescription())
 
 def setTableValue(table, row, field, type, value):
-    driver.put_Table(table)
-    driver.put_Row(row)
-    driver.put_Field(field)
-    driver.put_FieldType(0)
-    driver.put_Caption(value)
-    driver.SetTableField()
+    fptr.setParam(IFptr.LIBFPTR_PARAM_TABLE, table)
+    fptr.setParam(IFptr.LIBFPTR_PARAM_ROW, row)
+    fptr.setParam(IFptr.LIBFPTR_PARAM_FIELD, field)
+    fptr.setParam(IFptr.LIBFPTR_PARAM_FIELD_VALUE, value)
+
+    fptr.writeDeviceSettingRaw()
     errorCheck()
 
-def setFiscalProperty(property, type, value, checkForError = True):
-    driver.put_FiscalPropertyNumber(property) 
-    driver.put_FiscalPropertyPrint(1) 
-    driver.put_FiscalPropertyType(type) 
-    driver.put_FiscalPropertyValue(value) 
-    driver.WriteFiscalProperty()
+    fptr.commitSettings()
+    errorCheck()
+
+def setFiscalProperty(property, value, checkForError = True):
+    fptr.setParam(property, value)
     if checkForError:
         errorCheck()
 
-def setMode(mode):
-    driver.put_Mode(mode)
-    driver.put_UserPassword(30)
-    driver.SetMode()
-    errorCheck()
-
 def font(f):
-    setMode(4)
     setTableValue(2, 1, 32, 0, f)
 
 def fptrInit():
     global fn
-    driver.put_DeviceSingleSetting('Model', 57)
-    driver.put_DeviceSingleSetting('UserPassword', 30)
-    driver.put_DeviceSingleSetting('Port', 'USB$' + sys.argv[1])
-    driver.put_DeviceSingleSetting('Protocol', 2)
-    driver.put_DeviceSingleSetting('SearchDir', './fptr')
-    driver.ApplySingleSettings()
-    errorCheck()
-    driver.put_DeviceEnabled(True)
-    errorCheck()
-    driver.CancelCheck()
-    # Режим программирования
-    # на ошибки не проверяем, если, например, чек открыт то они будут
-    setMode(4)
+
+    fptr.setSingleSetting(IFptr.LIBFPTR_SETTING_PORT, str(IFptr.LIBFPTR_PORT_USB))
+    fptr.applySingleSettings()
+
+    fptr.open()
+
+    fptr.cancelReceipt()
+
     # Отключаем печать способа и признака расчета в позициях (116 и 117)
-    setTableValue(2, 1, 116, 0, '0')
-    setTableValue(2, 1, 117, 0, '0')
+    setTableValue(2, 1, 116, 0, 0)
+    setTableValue(2, 1, 117, 0, 0)
+
     # Шаблон чека №1
-    setTableValue(2, 1, 111, 0, '1')
+    setTableValue(2, 1, 111, 0, 1)
     # Яркость печати
-    setTableValue(2, 1, 19, 0, '7')
+    setTableValue(2, 1, 19, 0, 7)
     # Отключаем печать названия секции
-    setTableValue(2, 1, 15, 0, '0')
+    setTableValue(2, 1, 15, 0, 0)
     # Шрифт
     font(3)
+
     # Серийник ФН
-    driver.put_RegisterNumber(47)
-    driver.GetRegister()
+    fptr.setParam(IFptr.LIBFPTR_PARAM_FN_DATA_TYPE, IFptr.LIBFPTR_FNDT_FN_INFO)
+    fptr.fnQueryData()
     errorCheck()
-    fn = str(driver.get_SerialNumber()).strip().zfill(16)
-    driver.GetStatus()
+    fn = str(fptr.getParamString(IFptr.LIBFPTR_PARAM_SERIAL_NUMBER)).strip().zfill(16)
+    # Получаем статус
+    fptr.setParam(IFptr.LIBFPTR_PARAM_DATA_TYPE, IFptr.LIBFPTR_DT_STATUS)
+    fptr.queryData()
     errorCheck()
     # Все норм, бибикаем
     beep()
 
-def aReport(mode, type, data):
+def aReport(report, data):
     # Имя кассира
     if ('cashier' in data and data['cashier']):
-        setFiscalProperty(1021, 5, data['cashier'], False)
+        setFiscalProperty(1021, data['cashier'], False)
     # ИНН кассира
     if ('cashier_inn' in data and data['cashier_inn']):
-        setFiscalProperty(1018, 5, data['cashier_inn'], False)
-    setMode(mode)
-    driver.put_ReportType(type)
-    driver.Report()
-    errorCheck()
-    driver.GetCurrentStatus()
+        setFiscalProperty(1203, data['cashier_inn'], False)
+    fptr.operatorLogin()
+
+    fptr.setParam(IFptr.LIBFPTR_PARAM_REPORT_TYPE, report)
+    fptr.report()
     errorCheck()
 
-    driver.put_RegisterNumber(52)
-    driver.GetRegister()
-    fp = str(driver.get_Value()).strip().split('.')[0].zfill(10)
-
-    driver.GetCurrentStatus()
+    fptr.setParam(IFptr.LIBFPTR_PARAM_FN_DATA_TYPE, IFptr.LIBFPTR_FNDT_LAST_DOCUMENT)
+    fptr.fnQueryData()
     errorCheck()
+
+    fp = str(fptr.getParamString(IFptr.LIBFPTR_PARAM_FISCAL_SIGN)).strip().split('.')[0].zfill(10)
 
     # В зависимости от версии либо строка либо массив
     if ('version' in data and data['version'] == 2):
-        return { 'check': fn + ':' + fp, 'change': 0, 'version': 2 }
+        return { 'check': fn + ':' + fp, 'change': 0, 'version': 3 }
     else:
         return fn + ':' + fp
 
@@ -155,102 +144,108 @@ def check(data):
     # Печать перед основным чеком
     if ('slip' in data and data['slip']):
         frPrint(data['slip'])
-    # Режим регистрации
-    setMode(1)
     # Имя кассира
     if ('cashier' in data and data['cashier']):
-        setFiscalProperty(1021, 5, data['cashier'], False)
+        setFiscalProperty(1021, data['cashier'], False)
     # ИНН кассира
     if ('cashier_inn' in data and data['cashier_inn']):
-        setFiscalProperty(1018, 5, data['cashier_inn'], False)
-    # Метод выполняет GetStatus(), SetMode(), CancelCheck()
-    driver.NewDocument()
-    errorCheck()
+        setFiscalProperty(1018, data['cashier_inn'], False)
+    fptr.operatorLogin()
+
     # Тип чека
-    driver.put_CheckType(data['check_type'])
+    fptr.setParam(IFptr.LIBFPTR_PARAM_RECEIPT_TYPE, data['check_type'])
     # Открытие чека
-    driver.OpenCheck()
+    fptr.openReceipt()    
     errorCheck()
+    
     # Имя кассира (повторяем еще раз, если перый раз ушел в открытие смены)
     if ('cashier' in data and data['cashier']):
-        setFiscalProperty(1021, 5, data['cashier'], False)
+        setFiscalProperty(1021, data['cashier'], False)
     # ИНН кассира (повторяем еще раз, если перый раз ушел в открытие смены)
     if ('cashier_inn' in data and data['cashier_inn']):
-        setFiscalProperty(1018, 5, data['cashier_inn'], False)
+        setFiscalProperty(1018, data['cashier_inn'], False)
+    fptr.operatorLogin()
+
     # Email или телефон покупателя (ОФД отправит электронный чек)
     if ('report' in data and data['report']):
-        setFiscalProperty(1008, 5, data['report'])
+        setFiscalProperty(1008, data['report'])
     # Наличность в кассе проверяем только для наличной оплаты (0)
     if (data['payment_type'] >= 1):
-        driver.put_EnableCheckSumm(False)
+        fptr.setParam(IFptr.LIBFPTR_PARAM_CHECK_SUM, data['payment_type'] == 0)
     # Позици чека
     for p in data['positions']:
         # Штрихкод (серийный номер, uid или прочий идентификатор), если есть
         if ('barcode' in p and p['barcode']):
-            driver.put_Caption(p['barcode'])
-            driver.PrintString()
+            fptr.setParam(IFptr.LIBFPTR_PARAM_TEXT, p['barcode'])
+            fptr.printText()
         # Наименование товара
-        driver.put_Name(p['name'])
+        fptr.setParam(IFptr.LIBFPTR_PARAM_COMMODITY_NAME, p['name'])
         # Цена товара
-        driver.put_Price(p['price'])
+        fptr.setParam(IFptr.LIBFPTR_PARAM_PRICE, p['price'])
         # Количество товара
-        driver.put_Quantity(p['quantity'])
-        # Налог
-        driver.put_TaxNumber(p['tax'])
-        # Сумма строки (позиции)
-        driver.put_PositionSum(p['sum'])
-        # Предмет расчета 
-        driver.put_PositionType(p['type'])
-        # Способ расчета
-        driver.put_PositionPaymentType(p['payment'])
-        # Регистрация позиции
-        driver.Registration()
+        fptr.setParam(IFptr.LIBFPTR_PARAM_QUANTITY, p['quantity'])
+#        # Налог
+#        fptr.setParam(IFptr.LIBFPTR_PARAM_TAX_TYPE, p['tax'])
+#        # Сумма строки (позиции)
+        fptr.setParam(IFptr.LIBFPTR_PARAM_POSITION_SUM, p['sum'])
+#        # Предмет расчета 
+        fptr.setParam(1212, p['type'])
+#        # Способ расчета
+        fptr.setParam(1214, p['payment'])
+#        # Регистрация позиции
+        fptr.registration()
         errorCheck()
     # Номер исходного документа (при возврате или платеже для исправления ошибки кассира)
     if ('reason' in data and data['reason']):
-        driver.put_FiscalPropertyNumber(1192)
-        driver.put_FiscalPropertyType(5)
-        driver.put_FiscalPropertyValue(data['reason'])
-        driver.AddFiscalProperty()
+        fptr.setParam(1192, data['reason'])
         errorCheck()
     # Тип оплаты
-    driver.put_TypeClose(data['payment_type'])
+    fptr.setParam(IFptr.LIBFPTR_PARAM_PAYMENT_TYPE, data['payment_type'])
     # Сумма оплаты
-    driver.put_Summ(data['sum'])
+    fptr.setParam(IFptr.LIBFPTR_PARAM_PAYMENT_SUM, data['sum'])
     # Регистрация платежа
-    driver.Payment()
+    fptr.payment()
+    change = fptr.getParamDouble(IFptr.LIBFPTR_PARAM_CHANGE)    
     errorCheck()
     # Сдача
-    change = driver.get_Change()
+#    fptr.setParam(IFptr.LIBFPTR_PARAM_DATA_TYPE, IFptr.LIBFPTR_DT_RECEIPT_STATE)
+#    fptr.queryData()
     # Закрытие чека.
-    driver.CloseCheck()
+    fptr.closeReceipt()
     errorCheck()
     # Номер ФД чека
-    driver.put_RegisterNumber(51)
-    driver.GetRegister()
-    fp = str(driver.get_Value()).strip().split('.')[0].zfill(10)
+    fptr.setParam(IFptr.LIBFPTR_PARAM_FN_DATA_TYPE, IFptr.LIBFPTR_FNDT_LAST_DOCUMENT)
+    fptr.fnQueryData()
+    errorCheck()
+    fp = str(fptr.getParamString(IFptr.LIBFPTR_PARAM_FISCAL_SIGN)).strip().split('.')[0].zfill(10)
 
-    driver.GetCurrentStatus()
+    fptr.setParam(IFptr.LIBFPTR_PARAM_DATA_TYPE, IFptr.LIBFPTR_DT_STATUS)
+    fptr.queryData()
     errorCheck()
 
     # В зависимости от версии либо строка либо массив
     if ('version' in data and data['version'] == 2):
-        return { 'check': fn + ':' + fp, 'change': change, 'version': 2 }
+        return { 'check': fn + ':' + fp, 'change': change, 'version': 3 }
     else:
         return fn + ':' + fp
 
 def beep():
-    driver.Beep()
+    fptr.beep()
     errorCheck()
 
 def frPrint(lines):
     for l in lines:
         if (len(l) > 0 and ord(l[0]) == 1) or (len(l) > 0 and len(l) < 5 and l.find('@') > 0):
-            driver.FullCut()
+            fptr.cut()
         else:
-            driver.put_Caption(l)
-            driver.PrintString()
-    
+            fptr.setParam(IFptr.LIBFPTR_PARAM_TEXT, l)
+            fptr.printText()
+
+def sessionOpened():
+    fptr.setParam(IFptr.LIBFPTR_PARAM_DATA_TYPE, IFptr.LIBFPTR_DT_SHIFT_STATE)
+    fptr.queryData()
+
+    return fptr.getParamInt(IFptr.LIBFPTR_PARAM_SHIFT_STATE) == IFptr.LIBFPTR_SS_OPENED
 
 def processMessage(client, server, message):
     try:
@@ -262,76 +257,85 @@ def processMessage(client, server, message):
             refer = False
 
         if (data['method'] == 'ping'):
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': 'pong', 'opened': driver.get_SessionOpened(), 'fn': fn, 'version': 2, 'refer': refer }))
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': 'pong', 'opened': sessionOpened(), 'fn': fn, 'version': 3, 'refer': refer }))
             return
 
         if (data['method'] == 'check'):
-            driver.CancelCheck()
+            fptr.cancelReceipt()
             # Пробить чек
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': check(data['data']), 'opened': driver.get_SessionOpened(), 'refer': refer }))
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': check(data['data']), 'opened': sessionOpened(), 'refer': refer }))
             return
 
         if (data['method'] == 'report_z'):
-            driver.CancelCheck()
+            fptr.cancelReceipt()
             # Z-Отчет
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': aReport(3, 1, data), 'opened': driver.get_SessionOpened(), 'refer': refer }))
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': aReport(IFptr.LIBFPTR_RT_CLOSE_SHIFT, data), 'opened': sessionOpened(), 'refer': refer }))
             return
             
         if (data['method'] == 'report_x'):
-            driver.CancelCheck()
+            fptr.cancelReceipt()
             # X-Отчет
-            aReport(2, 2, data)
+            aReport(IFptr.LIBFPTR_RT_X, data)
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'refer': refer }))
             return
 
         if (data['method'] == 'report_c'):
-            driver.CancelCheck()
+            fptr.cancelReceipt()
             # Отчет по кассирам
-            aReport(2, 8, data)
+            aReport(IFptr.LIBFPTR_RT_OPERATORS, data)
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'refer': refer }))
             return
 
         if (data['method'] == 'open'):
-            driver.CancelCheck()
-            setMode(1)
-            setFiscalProperty(1021, 5, data['cashier'])
-            driver.OpenSession()
+            fptr.cancelReceipt()
+            if ('cashier' in data and data['cashier']):
+                setFiscalProperty(1021, data['cashier'], False)
+            # ИНН кассира
+            if ('cashier_inn' in data and data['cashier_inn']):
+                setFiscalProperty(1203, data['cashier_inn'], False)
+            fptr.operatorLogin()
+            fptr.openShift()
             errorCheck()
-            driver.GetCurrentStatus()
+            fptr.setParam(IFptr.LIBFPTR_PARAM_DATA_TYPE, IFptr.LIBFPTR_DT_STATUS)
+            fptr.queryData()
             errorCheck()
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'opened': driver.get_SessionOpened(), 'refer': refer }))
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'opened': sessionOpened(), 'refer': refer }))
             return
 
         if (data['method'] == 'cash_in'):
-            driver.CancelCheck()
-            setMode(1)
-            setFiscalProperty(1021, 5, data['cashier'])
-            driver.OpenSession()
+            fptr.cancelReceipt()
+            if ('cashier' in data and data['cashier']):
+                setFiscalProperty(1021, data['cashier'], False)
+            # ИНН кассира
+            if ('cashier_inn' in data and data['cashier_inn']):
+                setFiscalProperty(1203, data['cashier_inn'], False)
+            fptr.operatorLogin()
+            fptr.openShift()
             # на ошибки не проверяем, смена может быть уже открыта
-            driver.put_Summ(data['cash'])
-            driver.CashIncome()
+            fptr.setParam(IFptr.LIBFPTR_PARAM_SUM, data['cash'])
+            fptr.cashIncome()
             errorCheck()
-            driver.GetCurrentStatus()
+            fptr.setParam(IFptr.LIBFPTR_PARAM_DATA_TYPE, IFptr.LIBFPTR_DT_STATUS)
+            fptr.queryData()
             errorCheck()
-            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'opened': driver.get_SessionOpened(), 'refer': refer }))
+            server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'opened': sessionOpened(), 'refer': refer }))
             return
 
         if (data['method'] == 'cash_out'):
-            driver.CancelCheck()
-            setMode(1)
-            driver.put_Summ(data['cash'])
-            driver.CashOutcome()
+            fptr.cancelReceipt()
+            fptr.setParam(IFptr.LIBFPTR_PARAM_SUM, data['cash'])
+            fptr.cashOutcome()
             errorCheck()
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'refer': refer }))
             return
 
         if (data['method'] == 'cancel'):
-            driver.CancelCheck()
+            fptr.cancelReceipt()
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'refer': refer }))
             return
 
         if (data['method'] == 'print'):
-            driver.CancelCheck()
+            fptr.cancelReceipt()
             frPrint(data['data'])
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'refer': refer }))
             return
