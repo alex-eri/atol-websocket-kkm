@@ -1,12 +1,22 @@
 #!/bin/bash
 
-cd /opt/atol
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do 
+    DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+    SOURCE="$(readlink "$SOURCE")"
+    [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+
+cd $DIR
 
 systemctl stop atol-kkm
 systemctl stop pd2800-kkm
 systemctl stop sb-kkm
 
 git pull
+
+./driver-atol.py init
 
 systemctl start atol-kkm
 systemctl start pd2800-kkm

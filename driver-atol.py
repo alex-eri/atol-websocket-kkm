@@ -60,16 +60,20 @@ def errorCheck(exitIfFail = False):
         else:
             raise EFptrException('[' + str(fptr.errorCode()) + '] ' + fptr.errorDescription())
 
-def setTableValue(table, row, field, type, value):
+def setTableValue(table, row, field, value):
+    # Запись в таблицу настроек фискального регистратора
     fptr.setParam(IFptr.LIBFPTR_PARAM_TABLE, table)
     fptr.setParam(IFptr.LIBFPTR_PARAM_ROW, row)
     fptr.setParam(IFptr.LIBFPTR_PARAM_FIELD, field)
     fptr.setParam(IFptr.LIBFPTR_PARAM_FIELD_VALUE, value)
-
     fptr.writeDeviceSettingRaw()
     errorCheck()
 
-    fptr.commitSettings()
+def setFRSetting(setting, value):
+    # Запись настроек фискального регистратора
+    fptr.setParam(IFptr.LIBFPTR_PARAM_SETTING_ID, setting)
+    fptr.setParam(IFptr.LIBFPTR_PARAM_SETTING_VALUE, value)
+    fptr.writeDeviceSetting()
     errorCheck()
 
 def setFiscalProperty(property, value, checkForError = True):
@@ -89,24 +93,40 @@ def fptrInit():
 
     if (len(sys.argv) > 1 and sys.argv[1] == 'init'):
         # Отключаем печать способа и признака расчета в позициях (116 и 117)
-        setTableValue(2, 1, 116, 0, 0)
-        setTableValue(2, 1, 117, 0, 0)
+        setTableValue(2, 1, 116, 0)
+        setTableValue(2, 1, 117, 0)
         # Шаблон чека №1
-        setTableValue(2, 1, 111, 0, 1)
+        setTableValue(2, 1, 111, 1)
         # Яркость печати
-        setTableValue(2, 1, 19, 0, 7)
+        setTableValue(2, 1, 19, 7)
         # Отключаем печать названия секции
-        setTableValue(2, 1, 15, 0, 0)
+        setTableValue(2, 1, 15, 0)
         # Шрифт
-        setTableValue(2, 1, 32, 0, 3)
+        setTableValue(2, 1, 32, 3)
+        # Клише
+        setFRSetting(35, 3)
+        setFRSetting(184, u"                  ООО ЛАНТА")
+        setFRSetting(185, u"                 LANTA-NET.RU")
+        setFRSetting(186, u"                   42-99-99")
+        # Канал обмена данными с ОФД - Ethernet
+        setFRSetting(276, 2)
+        # Применяем измененные данные 
+        fptr.commitSettings()
+        errorCheck()
 
     # Серийник ФН
     fptr.setParam(IFptr.LIBFPTR_PARAM_FN_DATA_TYPE, IFptr.LIBFPTR_FNDT_FN_INFO)
     fptr.fnQueryData()
     errorCheck()
     fn = str(fptr.getParamString(IFptr.LIBFPTR_PARAM_SERIAL_NUMBER)).strip().zfill(16)
+    fptr.printCliche()
+    errorCheck()
     # Все норм, бибикаем
     beep()
+
+    # Если режим инициализации то выходим
+    if (len(sys.argv) > 1 and sys.argv[1] == 'init'):
+        sys.exit()
 
 def aReport(report, data):
     fptr.setParam(IFptr.LIBFPTR_PARAM_REPORT_TYPE, report)
