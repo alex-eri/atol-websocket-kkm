@@ -113,9 +113,9 @@ def fptrInit():
         setFRSetting(190, u"                  LANTA-NET.RU")
         setFRSetting(191, u"                    42-99-99")
         setFRSetting(192, "")
-        # Кол-во строк рекламы и строк всего
-        setFRSetting(14, 9)
+        # Кол-во строк рекламы и строк клише всего
         setFRSetting(35, 5)
+        setFRSetting(14, 9)
         # Канал обмена данными с ОФД - Ethernet
         setFRSetting(276, 2)
         # Применяем измененные данные 
@@ -127,8 +127,7 @@ def fptrInit():
     fptr.fnQueryData()
     errorCheck()
     fn = str(fptr.getParamString(IFptr.LIBFPTR_PARAM_SERIAL_NUMBER)).strip().zfill(16)
-    fptr.printCliche()
-    errorCheck()
+
     # Все норм, бибикаем
     beep()
 
