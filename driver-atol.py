@@ -103,11 +103,19 @@ def fptrInit():
         setTableValue(2, 1, 15, 0)
         # Шрифт
         setTableValue(2, 1, 32, 3)
-        # Клише
-        setFRSetting(35, 3)
-        setFRSetting(184, u"                  ООО ЛАНТА")
-        setFRSetting(185, u"                 LANTA-NET.RU")
-        setFRSetting(186, u"                   42-99-99")
+        # Клише и Реклама
+        setFRSetting(184, "")
+        setFRSetting(185, u"                 Ждем Вас снова!")
+        setFRSetting(186, "")
+        setFRSetting(187, "")
+        setFRSetting(188, "")
+        setFRSetting(189, u"                   ООО ЛАНТА")
+        setFRSetting(190, u"                  LANTA-NET.RU")
+        setFRSetting(191, u"                    42-99-99")
+        setFRSetting(192, "")
+        # Кол-во строк рекламы и строк всего
+        setFRSetting(14, 9)
+        setFRSetting(35, 5)
         # Канал обмена данными с ОФД - Ethernet
         setFRSetting(276, 2)
         # Применяем измененные данные 
@@ -221,14 +229,24 @@ def beep():
     fptr.beep()
     errorCheck()
 
+def printLine(l):
+    fptr.setParam(IFptr.LIBFPTR_PARAM_TEXT, l)
+    fptr.printText()
+    errorCheck()
+
 def frPrint(lines):
     for l in lines:
         if (len(l) > 0 and ord(l[0]) == 1) or (len(l) > 0 and len(l) < 5 and l.find('@') > 0):
             fptr.cut()
-            fptr.printCliche()
+            errorCheck()
+            printLine("")
+            printLine(u"                   ООО ЛАНТА")
+            printLine(u"                  LANTA-NET.RU")
+            printLine(u"                    42-99-99")
+            printLine("")
+            printLine("")
         else:
-            fptr.setParam(IFptr.LIBFPTR_PARAM_TEXT, l)
-            fptr.printText()
+            printLine(l)
 
 def sessionOpened():
     fptr.setParam(IFptr.LIBFPTR_PARAM_DATA_TYPE, IFptr.LIBFPTR_DT_SHIFT_STATE)
