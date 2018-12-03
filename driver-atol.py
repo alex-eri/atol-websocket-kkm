@@ -205,6 +205,7 @@ def frPrint(lines):
     for l in lines:
         if (len(l) > 0 and ord(l[0]) == 1) or (len(l) > 0 and len(l) < 5 and l.find('@') > 0):
             fptr.cut()
+            fptr.printCliche()
         else:
             fptr.setParam(IFptr.LIBFPTR_PARAM_TEXT, l)
             fptr.printText()
