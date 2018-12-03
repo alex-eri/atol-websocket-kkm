@@ -17,7 +17,7 @@ if sys.version[0] == '2':
 #pylint: disable-msg=E1101
     sys.setdefaultencoding("utf-8")
 
-fptr = IFptr("fptr/libfptr10.so")
+fptr = IFptr("./fptr/libfptr10.so")
 
 queue = Queue()
 exit = False
@@ -77,9 +77,6 @@ def setFiscalProperty(property, value, checkForError = True):
     if checkForError:
         errorCheck()
 
-def font(f):
-    setTableValue(2, 1, 32, 0, f)
-
 def fptrInit():
     global fn
 
@@ -90,91 +87,65 @@ def fptrInit():
 
     fptr.cancelReceipt()
 
-    # Отключаем печать способа и признака расчета в позициях (116 и 117)
-    setTableValue(2, 1, 116, 0, 0)
-    setTableValue(2, 1, 117, 0, 0)
-
-    # Шаблон чека №1
-    setTableValue(2, 1, 111, 0, 1)
-    # Яркость печати
-    setTableValue(2, 1, 19, 0, 7)
-    # Отключаем печать названия секции
-    setTableValue(2, 1, 15, 0, 0)
-    # Шрифт
-    font(3)
+    if (len(sys.argv) > 1 and sys.argv[1] == 'init'):
+        # Отключаем печать способа и признака расчета в позициях (116 и 117)
+        setTableValue(2, 1, 116, 0, 0)
+        setTableValue(2, 1, 117, 0, 0)
+        # Шаблон чека №1
+        setTableValue(2, 1, 111, 0, 1)
+        # Яркость печати
+        setTableValue(2, 1, 19, 0, 7)
+        # Отключаем печать названия секции
+        setTableValue(2, 1, 15, 0, 0)
+        # Шрифт
+        setTableValue(2, 1, 32, 0, 3)
 
     # Серийник ФН
     fptr.setParam(IFptr.LIBFPTR_PARAM_FN_DATA_TYPE, IFptr.LIBFPTR_FNDT_FN_INFO)
     fptr.fnQueryData()
     errorCheck()
     fn = str(fptr.getParamString(IFptr.LIBFPTR_PARAM_SERIAL_NUMBER)).strip().zfill(16)
-    # Получаем статус
-    fptr.setParam(IFptr.LIBFPTR_PARAM_DATA_TYPE, IFptr.LIBFPTR_DT_STATUS)
-    fptr.queryData()
-    errorCheck()
     # Все норм, бибикаем
     beep()
 
 def aReport(report, data):
-    # Имя кассира
-    if ('cashier' in data and data['cashier']):
-        setFiscalProperty(1021, data['cashier'], False)
-    # ИНН кассира
-    if ('cashier_inn' in data and data['cashier_inn']):
-        setFiscalProperty(1203, data['cashier_inn'], False)
-    fptr.operatorLogin()
-
     fptr.setParam(IFptr.LIBFPTR_PARAM_REPORT_TYPE, report)
     fptr.report()
     errorCheck()
 
     fptr.setParam(IFptr.LIBFPTR_PARAM_FN_DATA_TYPE, IFptr.LIBFPTR_FNDT_LAST_DOCUMENT)
     fptr.fnQueryData()
+    fp = str(fptr.getParamString(IFptr.LIBFPTR_PARAM_FISCAL_SIGN)).strip().split('.')[0].zfill(10)
     errorCheck()
 
-    fp = str(fptr.getParamString(IFptr.LIBFPTR_PARAM_FISCAL_SIGN)).strip().split('.')[0].zfill(10)
-
     # В зависимости от версии либо строка либо массив
-    if ('version' in data and data['version'] == 2):
+    if ('version' in data and data['version'] >= 2):
         return { 'check': fn + ':' + fp, 'change': 0, 'version': 3 }
     else:
         return fn + ':' + fp
 
 def check(data):
+    # Открыть смену (если она закрыта)
+    if (not sessionOpened()):
+        operatorLogin(data)
+        fptr.openShift()
     # Печать перед основным чеком
     if ('slip' in data and data['slip']):
         frPrint(data['slip'])
-    # Имя кассира
-    if ('cashier' in data and data['cashier']):
-        setFiscalProperty(1021, data['cashier'], False)
-    # ИНН кассира
-    if ('cashier_inn' in data and data['cashier_inn']):
-        setFiscalProperty(1018, data['cashier_inn'], False)
-    fptr.operatorLogin()
-
+    operatorLogin(data)
     # Тип чека
     fptr.setParam(IFptr.LIBFPTR_PARAM_RECEIPT_TYPE, data['check_type'])
     # Открытие чека
     fptr.openReceipt()    
     errorCheck()
-    
-    # Имя кассира (повторяем еще раз, если перый раз ушел в открытие смены)
-    if ('cashier' in data and data['cashier']):
-        setFiscalProperty(1021, data['cashier'], False)
-    # ИНН кассира (повторяем еще раз, если перый раз ушел в открытие смены)
-    if ('cashier_inn' in data and data['cashier_inn']):
-        setFiscalProperty(1018, data['cashier_inn'], False)
-    fptr.operatorLogin()
-
     # Email или телефон покупателя (ОФД отправит электронный чек)
     if ('report' in data and data['report']):
         setFiscalProperty(1008, data['report'])
     # Наличность в кассе проверяем только для наличной оплаты (0)
-    if (data['payment_type'] >= 1):
-        fptr.setParam(IFptr.LIBFPTR_PARAM_CHECK_SUM, data['payment_type'] == 0)
+    fptr.setParam(IFptr.LIBFPTR_PARAM_CHECK_SUM, data['payment_type'] == 0)
     # Позици чека
     for p in data['positions']:
-        # Штрихкод (серийный номер, uid или прочий идентификатор), если есть
+        # Штрихкод (серийный номер, uid или прочий идентификатор), если есть (печатаем нефискально)
         if ('barcode' in p and p['barcode']):
             fptr.setParam(IFptr.LIBFPTR_PARAM_TEXT, p['barcode'])
             fptr.printText()
@@ -184,18 +155,18 @@ def check(data):
         fptr.setParam(IFptr.LIBFPTR_PARAM_PRICE, p['price'])
         # Количество товара
         fptr.setParam(IFptr.LIBFPTR_PARAM_QUANTITY, p['quantity'])
-#        # Налог
-#        fptr.setParam(IFptr.LIBFPTR_PARAM_TAX_TYPE, p['tax'])
-#        # Сумма строки (позиции)
+        # Налог
+        fptr.setParam(IFptr.LIBFPTR_PARAM_TAX_TYPE, p['tax'])
+        # Сумма строки (позиции)
         fptr.setParam(IFptr.LIBFPTR_PARAM_POSITION_SUM, p['sum'])
-#        # Предмет расчета 
+        # Предмет расчета 
         fptr.setParam(1212, p['type'])
-#        # Способ расчета
+        # Способ расчета
         fptr.setParam(1214, p['payment'])
-#        # Регистрация позиции
+        # Регистрация позиции
         fptr.registration()
         errorCheck()
-    # Номер исходного документа (при возврате или платеже для исправления ошибки кассира)
+    # Номер исходного документа
     if ('reason' in data and data['reason']):
         fptr.setParam(1192, data['reason'])
         errorCheck()
@@ -205,11 +176,9 @@ def check(data):
     fptr.setParam(IFptr.LIBFPTR_PARAM_PAYMENT_SUM, data['sum'])
     # Регистрация платежа
     fptr.payment()
-    change = fptr.getParamDouble(IFptr.LIBFPTR_PARAM_CHANGE)    
     errorCheck()
     # Сдача
-#    fptr.setParam(IFptr.LIBFPTR_PARAM_DATA_TYPE, IFptr.LIBFPTR_DT_RECEIPT_STATE)
-#    fptr.queryData()
+    change = fptr.getParamDouble(IFptr.LIBFPTR_PARAM_CHANGE)    
     # Закрытие чека.
     fptr.closeReceipt()
     errorCheck()
@@ -218,14 +187,13 @@ def check(data):
     fptr.fnQueryData()
     errorCheck()
     fp = str(fptr.getParamString(IFptr.LIBFPTR_PARAM_FISCAL_SIGN)).strip().split('.')[0].zfill(10)
-
-    fptr.setParam(IFptr.LIBFPTR_PARAM_DATA_TYPE, IFptr.LIBFPTR_DT_STATUS)
-    fptr.queryData()
+    # Номер смены и чека
+    fptr.setParam(IFptr.LIBFPTR_PARAM_FN_DATA_TYPE, IFptr.LIBFPTR_FNDT_SHIFT)
+    fptr.fnQueryData()
     errorCheck()
-
     # В зависимости от версии либо строка либо массив
-    if ('version' in data and data['version'] == 2):
-        return { 'check': fn + ':' + fp, 'change': change, 'version': 3 }
+    if ('version' in data and data['version'] >= 2):
+        return { 'check': fn + ':' + fp, 'change': change, 'shift': fptr.getParamInt(IFptr.LIBFPTR_PARAM_SHIFT_NUMBER), 'receipt': fptr.getParamInt(IFptr.LIBFPTR_PARAM_RECEIPT_NUMBER), 'version': 3 }
     else:
         return fn + ':' + fp
 
@@ -246,6 +214,15 @@ def sessionOpened():
     fptr.queryData()
 
     return fptr.getParamInt(IFptr.LIBFPTR_PARAM_SHIFT_STATE) == IFptr.LIBFPTR_SS_OPENED
+
+def operatorLogin(data):
+    # Имя кассира
+    if ('cashier' in data and data['cashier']):
+        setFiscalProperty(1021, data['cashier'], False)
+    # ИНН кассира
+    if ('cashier_inn' in data and data['cashier_inn']):
+        setFiscalProperty(1203, data['cashier_inn'], False)
+    fptr.operatorLogin()
 
 def processMessage(client, server, message):
     try:
@@ -268,6 +245,7 @@ def processMessage(client, server, message):
 
         if (data['method'] == 'report_z'):
             fptr.cancelReceipt()
+            operatorLogin(data)
             # Z-Отчет
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': aReport(IFptr.LIBFPTR_RT_CLOSE_SHIFT, data), 'opened': sessionOpened(), 'refer': refer }))
             return
@@ -288,41 +266,28 @@ def processMessage(client, server, message):
 
         if (data['method'] == 'open'):
             fptr.cancelReceipt()
-            if ('cashier' in data and data['cashier']):
-                setFiscalProperty(1021, data['cashier'], False)
-            # ИНН кассира
-            if ('cashier_inn' in data and data['cashier_inn']):
-                setFiscalProperty(1203, data['cashier_inn'], False)
-            fptr.operatorLogin()
+            operatorLogin(data)
+            # Открытие смены
             fptr.openShift()
             errorCheck()
-            fptr.setParam(IFptr.LIBFPTR_PARAM_DATA_TYPE, IFptr.LIBFPTR_DT_STATUS)
-            fptr.queryData()
             errorCheck()
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'opened': sessionOpened(), 'refer': refer }))
             return
 
         if (data['method'] == 'cash_in'):
             fptr.cancelReceipt()
-            if ('cashier' in data and data['cashier']):
-                setFiscalProperty(1021, data['cashier'], False)
-            # ИНН кассира
-            if ('cashier_inn' in data and data['cashier_inn']):
-                setFiscalProperty(1203, data['cashier_inn'], False)
-            fptr.operatorLogin()
-            fptr.openShift()
-            # на ошибки не проверяем, смена может быть уже открыта
+            operatorLogin(data)
+            # Внесение наличных в кассу
             fptr.setParam(IFptr.LIBFPTR_PARAM_SUM, data['cash'])
             fptr.cashIncome()
-            errorCheck()
-            fptr.setParam(IFptr.LIBFPTR_PARAM_DATA_TYPE, IFptr.LIBFPTR_DT_STATUS)
-            fptr.queryData()
             errorCheck()
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'opened': sessionOpened(), 'refer': refer }))
             return
 
         if (data['method'] == 'cash_out'):
             fptr.cancelReceipt()
+            operatorLogin(data)
+            # Инкассация
             fptr.setParam(IFptr.LIBFPTR_PARAM_SUM, data['cash'])
             fptr.cashOutcome()
             errorCheck()
@@ -330,11 +295,13 @@ def processMessage(client, server, message):
             return
 
         if (data['method'] == 'cancel'):
+            # Аннуляция чека
             fptr.cancelReceipt()
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'refer': refer }))
             return
 
         if (data['method'] == 'print'):
+            # Печать нефискальных данных
             fptr.cancelReceipt()
             frPrint(data['data'])
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'refer': refer }))
