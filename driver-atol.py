@@ -168,7 +168,7 @@ def check(data):
     # Тип чека
     fptr.setParam(IFptr.LIBFPTR_PARAM_RECEIPT_TYPE, data['check_type'])
     # Открытие чека
-    fptr.openReceipt()    
+    fptr.openReceipt()
     errorCheck()
     # Email или телефон покупателя (ОФД отправит электронный чек)
     if ('report' in data and data['report']):
@@ -210,7 +210,7 @@ def check(data):
     fptr.payment()
     errorCheck()
     # Сдача
-    change = fptr.getParamDouble(IFptr.LIBFPTR_PARAM_CHANGE)    
+    change = fptr.getParamDouble(IFptr.LIBFPTR_PARAM_CHANGE)
     # Закрытие чека.
     fptr.closeReceipt()
     errorCheck()
@@ -240,23 +240,23 @@ def printLine(l):
 
 def frPrint(lines):
     for l in lines:
-        if (len(l) > 0 and ord(l[0]) == 1) or (len(l) > 0 and len(l) < 5 and l.find('@') > 0):
+        if (len(l) > 0 and ord(l[0]) == 1) or (len(l) > 0 and len(l) < 5 and l.find('@') >= 0):
             fptr.cut()
             errorCheck()
-            printLine("")
-            fptr.setParam(IFptr.LIBFPTR_PARAM_PICTURE_NUMBER, 1)
-            fptr.setParam(IFptr.LIBFPTR_PARAM_ALIGNMENT, IFptr.LIBFPTR_ALIGNMENT_LEFT)
-            fptr.setParam(IFptr.LIBFPTR_PARAM_LEFT_MARGIN, 225)
-            fptr.printPictureByNumber()
-            errorCheck()
-            printLine(u"                    42-99-99")
-            printLine("")
         else:
             printLine(l)
+    fptr.setParam(IFptr.LIBFPTR_PARAM_PICTURE_NUMBER, 1)
+    fptr.setParam(IFptr.LIBFPTR_PARAM_ALIGNMENT, IFptr.LIBFPTR_ALIGNMENT_LEFT)
+    fptr.setParam(IFptr.LIBFPTR_PARAM_LEFT_MARGIN, 225)
+    fptr.printPictureByNumber()
+    errorCheck()
+    printLine(u"                    42-99-99")
+    printLine("")
 
 def sessionOpened():
     fptr.setParam(IFptr.LIBFPTR_PARAM_DATA_TYPE, IFptr.LIBFPTR_DT_SHIFT_STATE)
     fptr.queryData()
+    errorCheck()
 
     return fptr.getParamInt(IFptr.LIBFPTR_PARAM_SHIFT_STATE) == IFptr.LIBFPTR_SS_OPENED
 
@@ -294,7 +294,7 @@ def processMessage(client, server, message):
             # Z-Отчет
             server.send_message(client, json.dumps({ 'result': 'OK', 'method': data['method'], 'value': aReport(IFptr.LIBFPTR_RT_CLOSE_SHIFT, data), 'opened': sessionOpened(), 'refer': refer }))
             return
-            
+
         if (data['method'] == 'report_x'):
             fptr.cancelReceipt()
             # X-Отчет
@@ -361,7 +361,7 @@ def processMessage(client, server, message):
 
     except Exception as e:
         server.send_message(client, json.dumps({ 'result': 'ERR', 'type': type(e).__name__, 'value': e.args[0] }))
-    
+
 def messageReceived(client, server, message):
     queue.put({ 'client': client['id'], 'message': message })
 
@@ -373,7 +373,7 @@ def serviceShutdown(signum, frame):
 
 try:
     signal.signal(signal.SIGTERM, serviceShutdown)
-    signal.signal(signal.SIGINT, serviceShutdown)    
+    signal.signal(signal.SIGINT, serviceShutdown)
 
     fptrInit()
 
