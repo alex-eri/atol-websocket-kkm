@@ -14,6 +14,8 @@ systemctl stop atol-kkm
 systemctl stop pd2800-kkm
 systemctl stop sb-kkm
 
+git clean -df
+git checkout -- .
 git pull
 
 ./driver-atol.py init
