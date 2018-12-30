@@ -141,6 +141,14 @@ def fptrInit():
         sys.exit()
 
 def aReport(report, data):
+    # Номер смены и чека
+    fptr.setParam(IFptr.LIBFPTR_PARAM_FN_DATA_TYPE, IFptr.LIBFPTR_FNDT_SHIFT)
+    fptr.fnQueryData()
+    errorCheck()
+
+    shift = fptr.getParamInt(IFptr.LIBFPTR_PARAM_SHIFT_NUMBER)
+    receipt = fptr.getParamInt(IFptr.LIBFPTR_PARAM_RECEIPT_NUMBER)
+
     fptr.setParam(IFptr.LIBFPTR_PARAM_REPORT_TYPE, report)
     fptr.report()
     errorCheck()
@@ -152,7 +160,7 @@ def aReport(report, data):
 
     # В зависимости от версии либо строка либо массив
     if ('version' in data and data['version'] >= 2):
-        return { 'check': fn + ':' + fp, 'change': 0, 'version': 3 }
+        return { 'check': fn + ':' + fp, 'change': 0, 'shift': shift, 'receipt': receipt, 'version': 3 }
     else:
         return fn + ':' + fp
 
