@@ -141,7 +141,7 @@ def fptrInit():
         sys.exit()
 
 def aReport(report, data):
-    # Номер смены и чека
+    # Номер смены и чека (количество чеков в смене)
     fptr.setParam(IFptr.LIBFPTR_PARAM_FN_DATA_TYPE, IFptr.LIBFPTR_FNDT_SHIFT)
     fptr.fnQueryData()
     errorCheck()
