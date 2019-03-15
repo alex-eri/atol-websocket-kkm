@@ -175,12 +175,12 @@ def check(data):
     operatorLogin(data)
     # Тип чека
     fptr.setParam(IFptr.LIBFPTR_PARAM_RECEIPT_TYPE, data['check_type'])
-    # Открытие чека
-    fptr.openReceipt()
-    errorCheck()
     # Email или телефон покупателя (ОФД отправит электронный чек)
     if ('report' in data and data['report']):
         setFiscalProperty(1008, data['report'])
+    # Открытие чека
+    fptr.openReceipt()
+    errorCheck()
     # Наличность в кассе проверяем только для наличной оплаты (0)
     fptr.setParam(IFptr.LIBFPTR_PARAM_CHECK_SUM, data['payment_type'] == 0)
     # Позици чека
