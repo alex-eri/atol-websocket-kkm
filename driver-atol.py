@@ -12,12 +12,14 @@ from threading import Thread
 from libfptr10 import IFptr
 from websocket_server import WebsocketServer
 
+import platform
+
 if sys.version[0] == '2':
     reload(sys)
 #pylint: disable-msg=E1101
     sys.setdefaultencoding("utf-8")
 
-fptr = IFptr("./fptr/libfptr10.so")
+fptr = IFptr("./fptr." + platform.machine() + "/libfptr10.so")
 
 queue = Queue()
 exit = False
