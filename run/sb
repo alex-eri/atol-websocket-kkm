@@ -24,6 +24,7 @@ fi
 mkdir /tmp/sb_pilot 2>/dev/null
 cp ./sb_pilot/sb_pilot /tmp/sb_pilot/sb_pilot 2>/dev/null
 cp ./sb_pilot/pinpad.ini /tmp/sb_pilot/pinpad.ini 2>/dev/null
+cp ./sb_pilot/upnixmn.out /tmp/sb_pilot/upnixmn.out 2>/dev/null
 
 if [ "$term" != "" ]; then
     ./driver-sb.py
