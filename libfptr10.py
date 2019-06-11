@@ -224,7 +224,28 @@ class IFptr(object):
         LIBFPTR_PARAM_NEW_PLATFORM,
         LIBFPTR_PARAM_UNIT_RELEASE_VERSION,
         LIBFPTR_PARAM_USE_VAT18,
-    ) = RANGE(65536, 65739)
+        LIBFPTR_PARAM_TAG_NAME,
+        LIBFPTR_PARAM_TAG_TYPE,
+        LIBFPTR_PARAM_TAG_IS_COMPLEX,
+        LIBFPTR_PARAM_TAG_IS_REPEATABLE,
+        LIBFPTR_PARAM_SHIFT_AUTO_OPENED,
+        LIBFPTR_PARAM_CONTAINER_FIRMWARE_VERSION,
+        LIBFPTR_PARAM_CONTAINER_CONFIGURATION_VERSION,
+        LIBFPTR_PARAM_CONTAINER_BOOTLOADER_VERSION,
+        LIBFPTR_PARAM_CONTAINER_SCRIPTS_VERSION,
+        LIBFPTR_PARAM_PAPER_NEAR_END,
+        LIBFPTR_PARAM_REPORT_ELECTRONICALLY,
+        LIBFPTR_PARAM_ACTIVATION_METHOD,
+        LIBFPTR_PARAM_KEYS,
+        LIBFPTR_PARAM_UIN,
+        LIBFPTR_PARAM_VERSION,
+        LIBFPTR_PARAM_PUBLIC_KEY_SIGN,
+        LIBFPTR_PARAM_CAP_DISABLE_PRINT_REPORTS,
+        LIBFPTR_PARAM_REGISTRATION_NUMBER,
+        LIBFPTR_PARAM_PIXEL_BUFFER,
+        LIBFPTR_PARAM_REPEAT_NUMBER,
+        LIBFPTR_PARAM_FIELD_TYPE,
+    ) = RANGE(65536, 65760)
 
     (
         LIBFPTR_OK,
@@ -447,7 +468,15 @@ class IFptr(object):
         LIBFPTR_ERROR_INVALID_FISCAL_PROPERTY_VALUE_1212,
         LIBFPTR_ERROR_SYNC_TIME,
         LIBFPTR_ERROR_VAT18_VAT20_IN_RECEIPT,
-    ) = RANGE(0, 220)
+        LIBFPTR_ERROR_PICTURE_NOT_CLOSED,
+        LIBFPTR_ERROR_INTERFACE_BUSY,
+        LIBFPTR_ERROR_INVALID_PICTURE_NUMBER,
+        LIBFPTR_ERROR_INVALID_CONTAINER,
+        LIBFPTR_ERROR_ARCHIVE_CLOSED,
+        LIBFPTR_ERROR_NEED_REGISTRATION,
+        LIBFPTR_ERROR_DENIED_DURING_UPDATE,
+        LIBFPTR_ERROR_INVALID_TOTAL,
+    ) = RANGE(0, 228)
 
     (
         LIBFPTR_ERROR_BASE_WEB,
@@ -576,7 +605,8 @@ class IFptr(object):
         LIBFPTR_RT_COMMODITIES_BY_DEPARTMENTS,
         LIBFPTR_RT_COMMODITIES_BY_SUMS,
         LIBFPTR_RT_START_SERVICE,
-    ) = RANGE(0, 20)
+        LIBFPTR_RT_DISCOUNTS,
+    ) = RANGE(0, 21)
 
     (
         LIBFPTR_PT_CASH,
@@ -672,7 +702,8 @@ class IFptr(object):
         LIBFPTR_FNDT_ERRORS,
         LIBFPTR_FNDT_TICKET_BY_DOC_NUMBER,
         LIBFPTR_FNDT_DOCUMENT_BY_NUMBER,
-    ) = RANGE(0, 14)
+        LIBFPTR_FNDT_REGISTRATION_TLV,
+    ) = RANGE(0, 15)
 
     (
         LIBFPTR_UT_FIRMWARE,
@@ -706,7 +737,10 @@ class IFptr(object):
         LIBFPTR_RT_FN_DOCUMENT_TLVS,
         LIBFPTR_RT_EXEC_USER_SCRIPT,
         LIBFPTR_RT_FIRMWARE,
-    ) = RANGE(0, 4)
+        LIBFPTR_RT_LICENSES,
+        LIBFPTR_RT_FN_REGISTRATION_TLVS,
+        LIBFPTR_RT_PARSE_COMPLEX_ATTR,
+    ) = RANGE(0, 7)
 
     (
         LIBFPTR_LOG_ERROR,
@@ -719,7 +753,8 @@ class IFptr(object):
         LIBFPTR_NT_FURS,
         LIBFPTR_NT_MEDICINES,
         LIBFPTR_NT_TOBACCO,
-    ) = RANGE(0, 3)
+        LIBFPTR_NT_SHOES,
+    ) = RANGE(0, 4)
 
     (
         LIBFPTR_UMO_GET_SIZE,
@@ -739,7 +774,30 @@ class IFptr(object):
         LIBFPTR_DEFER_NONE,
         LIBFPTR_DEFER_PRE,
         LIBFPTR_DEFER_POST,
-    ) = RANGE(0, 3)
+        LIBFPTR_DEFER_OVERLAY,
+    ) = RANGE(0, 4)
+
+    (
+        LIBFPTR_TAG_TYPE_STLV,
+        LIBFPTR_TAG_TYPE_STRING,
+        LIBFPTR_TAG_TYPE_ARRAY,
+        LIBFPTR_TAG_TYPE_FVLN,
+        LIBFPTR_TAG_TYPE_BITS,
+        LIBFPTR_TAG_TYPE_BYTE,
+        LIBFPTR_TAG_TYPE_VLN,
+        LIBFPTR_TAG_TYPE_UINT_16,
+        LIBFPTR_TAG_TYPE_UINT_32,
+        LIBFPTR_TAG_TYPE_UNIX_TIME,
+        LIBFPTR_TAG_TYPE_BOOL,
+    ) = RANGE(0, 11)
+
+    (
+        LIBFPTR_FT_BYTE_ARRAY,
+        LIBFPTR_FT_BIN,
+        LIBFPTR_FT_BCD,
+        LIBFPTR_FT_STRING,
+        LIBFPTR_FT_STRING_NULL_TERM,
+    ) = RANGE(0, 5)
 
     LIBFPTR_SETTING_LIBRARY_PATH = "LibraryPath"
 
@@ -811,9 +869,13 @@ class IFptr(object):
 
     LIBFPTR_MODEL_ATOL_SIGMA_10 = 86
 
+    LIBFPTR_MODEL_ATOL_27F = 87
+
     LIBFPTR_MODEL_ATOL_SIGMA_7F = 90
 
     LIBFPTR_MODEL_ATOL_SIGMA_8F = 91
+
+    LIBFPTR_MODEL_ATOL_1F = 93
 
     LIBFPTR_MODEL_KAZNACHEY_FA = 76
 
@@ -834,6 +896,12 @@ class IFptr(object):
     LIBFPTR_PORT_BR_57600 = 57600
 
     LIBFPTR_PORT_BR_115200 = 115200
+
+    LIBFPTR_PORT_BR_230400 = 230400
+
+    LIBFPTR_PORT_BR_460800 = 460800
+
+    LIBFPTR_PORT_BR_921600 = 921600
 
     LIBFPTR_FNS_INITIAL = 0
 
@@ -942,6 +1010,8 @@ class IFptr(object):
                                                     ctypes.c_void_p,
                                                     ctypes.c_wchar_p,
                                                     ctypes.c_int)
+    RESET_ERROR_METHOD = ctypes.CFUNCTYPE(None,
+                                          ctypes.c_void_p)
 
     SET_SETTINGS_METHOD = ctypes.CFUNCTYPE(ctypes.c_int,
                                            ctypes.c_void_p,
@@ -1085,6 +1155,7 @@ class IFptr(object):
         self._isOpened = self.IS_OPENED_METHOD(('libfptr_is_opened', self.library))
         self._errorCode = self.GET_ERROR_CODE_METHOD(('libfptr_error_code', self.library))
         self._errorDescription = self.GET_ERROR_DESCRIPTION_METHOD(('libfptr_error_description', self.library))
+        self._resetError = self.RESET_ERROR_METHOD(('libfptr_reset_error', self.library))
         self._logWrite = self.LOG_WRITE_METHOD(('libfptr_log_write', self.library))
         self._showProperties = self.SHOW_PROPERTIES_METHOD(('libfptr_show_properties', self.library))
 
@@ -1106,6 +1177,9 @@ class IFptr(object):
 
     def errorCode(self):
         return self._errorCode(self.interface)
+
+    def resetError(self):
+        self._resetError(self.interface)
 
     def errorDescription(self):
         buff = ctypes.create_unicode_buffer(self.DEFAULT_BUFF_SIZE)
@@ -1201,7 +1275,7 @@ class IFptr(object):
                                   ctypes.cast(value, ctypes.POINTER(ctypes.c_ubyte)),
                                   self.DEFAULT_BUFF_SIZE)
         if size > self.DEFAULT_BUFF_SIZE:
-            answer = (ctypes.c_ubyte * size)()
+            value = (ctypes.c_ubyte * size)()
             size = self._getByteArray(self.interface, ctypes.c_int(paramId),
                                       ctypes.cast(value, ctypes.POINTER(ctypes.c_ubyte)), size)
         return value[:size]
@@ -1498,6 +1572,62 @@ class IFptr(object):
 
     def utilCalcTax(self):
         _method = self.METHOD(('libfptr_util_calc_tax', self.library))
+        return _method(self.interface)
+
+    def downloadPicture(self):
+        _method = self.METHOD(('libfptr_download_picture', self.library))
+        return _method(self.interface)
+
+    def bluetoothRemovePairedDevices(self):
+        _method = self.METHOD(('libfptr_bluetooth_remove_paired_devices', self.library))
+        return _method(self.interface)
+
+    def utilTagInfo(self):
+        _method = self.METHOD(('libfptr_util_tag_info', self.library))
+        return _method(self.interface)
+
+    def utilContainerVersions(self):
+        _method = self.METHOD(('libfptr_util_container_versions', self.library))
+        return _method(self.interface)
+
+    def activateLicenses(self):
+        _method = self.METHOD(('libfptr_activate_licenses', self.library))
+        return _method(self.interface)
+
+    def removeLicenses(self):
+        _method = self.METHOD(('libfptr_remove_licenses', self.library))
+        return _method(self.interface)
+
+    def enterKeys(self):
+        _method = self.METHOD(('libfptr_enter_keys', self.library))
+        return _method(self.interface)
+
+    def validateKeys(self):
+        _method = self.METHOD(('libfptr_validate_keys', self.library))
+        return _method(self.interface)
+
+    def enterSerialNumber(self):
+        _method = self.METHOD(('libfptr_enter_serial_number', self.library))
+        return _method(self.interface)
+
+    def getSerialNumberRequest(self):
+        _method = self.METHOD(('libfptr_get_serial_number_request', self.library))
+        return _method(self.interface)
+
+    def uploadPixelBuffer(self):
+        _method = self.METHOD(('libfptr_upload_pixel_buffer', self.library))
+        return _method(self.interface)
+
+    def downloadPixelBuffer(self):
+        _method = self.METHOD(('libfptr_download_pixel_buffer', self.library))
+        return _method(self.interface)
+
+    def printPixelBuffer(self):
+        _method = self.METHOD(('libfptr_print_pixel_buffer', self.library))
+        return _method(self.interface)
+
+    def utilConvertTagValue(self):
+        _method = self.METHOD(('libfptr_util_convert_tag_value', self.library))
         return _method(self.interface)
 
 
