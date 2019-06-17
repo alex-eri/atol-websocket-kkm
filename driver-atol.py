@@ -79,6 +79,7 @@ def setFRSetting(setting, value):
     errorCheck()
 
 def setFiscalProperty(property, value, checkForError = True):
+    print(property, " ", value, "\n")
     fptr.setParam(property, value)
     if checkForError:
         errorCheck()
@@ -180,6 +181,12 @@ def check(data):
     # Email или телефон покупателя (ОФД отправит электронный чек)
     if ('report' in data and data['report']):
         setFiscalProperty(1008, data['report'])
+    # Имя покупателя (1227)
+    if ('tag1227' in data and data['tag1227']):
+        setFiscalProperty(1227, data['tag1227'])
+    # ИНН покупателя (1228)
+    if ('tag1228' in data and data['tag1228']):
+        setFiscalProperty(1228, data['tag1228'])
     # Открытие чека
     fptr.openReceipt()
     errorCheck()
