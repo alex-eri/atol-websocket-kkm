@@ -245,7 +245,12 @@ class IFptr(object):
         LIBFPTR_PARAM_PIXEL_BUFFER,
         LIBFPTR_PARAM_REPEAT_NUMBER,
         LIBFPTR_PARAM_FIELD_TYPE,
-    ) = RANGE(65536, 65760)
+        LIBFPTR_PARAM_MARKING_CODE,
+        LIBFPTR_PARAM_CONTAINER_DIRECT_BOOT_VERSION,
+        LIBFPTR_PARAM_SCRIPT_NAME,
+        LIBFPTR_PARAM_SCRIPT_HASH,
+        LIBFPTR_PARAM_RECORDS_ID,
+    ) = RANGE(65536, 65765)
 
     (
         LIBFPTR_OK,
@@ -476,7 +481,10 @@ class IFptr(object):
         LIBFPTR_ERROR_NEED_REGISTRATION,
         LIBFPTR_ERROR_DENIED_DURING_UPDATE,
         LIBFPTR_ERROR_INVALID_TOTAL,
-    ) = RANGE(0, 228)
+        LIBFPTR_ERROR_MARKING_CODE_CONFLICT,
+        LIBFPTR_ERROR_INVALID_RECORDS_ID,
+        LIBFPTR_ERROR_INVALID_SIGNATURE,
+    ) = RANGE(0, 231)
 
     (
         LIBFPTR_ERROR_BASE_WEB,
@@ -685,7 +693,8 @@ class IFptr(object):
         LIBFPTR_DT_SHORT_STATUS,
         LIBFPTR_DT_PICTURES_ARRAY_INFO,
         LIBFPTR_DT_ETHERNET_INFO,
-    ) = RANGE(0, 44)
+        LIBFPTR_DT_SCRIPTS_INFO,
+    ) = RANGE(0, 45)
 
     (
         LIBFPTR_FNDT_TAG_VALUE,
@@ -703,7 +712,8 @@ class IFptr(object):
         LIBFPTR_FNDT_TICKET_BY_DOC_NUMBER,
         LIBFPTR_FNDT_DOCUMENT_BY_NUMBER,
         LIBFPTR_FNDT_REGISTRATION_TLV,
-    ) = RANGE(0, 15)
+        LIBFPTR_FNDT_ERROR_DETAIL,
+    ) = RANGE(0, 16)
 
     (
         LIBFPTR_UT_FIRMWARE,
@@ -1122,26 +1132,32 @@ class IFptr(object):
         _create(ctypes.pointer(self.interface))
 
         self._setByteArray = self.SET_BYTEARRAY_METHOD(('libfptr_set_param_bytearray', self.library))
+        self._setUserByteArray = self.SET_BYTEARRAY_METHOD(('libfptr_set_user_param_bytearray', self.library))
         self._setNonPrintableByteArray = self.SET_BYTEARRAY_METHOD(('libfptr_set_non_printable_param_bytearray', self.library))
         self._getByteArray = self.GET_BYTEARRAY_METHOD(('libfptr_get_param_bytearray', self.library))
 
         self._setInt = self.SET_INT_METHOD(('libfptr_set_param_int', self.library))
+        self._setUserInt = self.SET_INT_METHOD(('libfptr_set_user_param_int', self.library))
         self._setNonPrintableInt = self.SET_INT_METHOD(('libfptr_set_non_printable_param_int', self.library))
         self._getInt = self.GET_INT_METHOD(('libfptr_get_param_int', self.library))
 
         self._setBool = self.SET_BOOL_METHOD(('libfptr_set_param_bool', self.library))
+        self._setUserBool = self.SET_BOOL_METHOD(('libfptr_set_user_param_bool', self.library))
         self._setNonPrintableBool = self.SET_BOOL_METHOD(('libfptr_set_non_printable_param_bool', self.library))
         self._getBool = self.GET_BOOL_METHOD(('libfptr_get_param_bool', self.library))
 
         self._setDouble = self.SET_DOUBLE_METHOD(('libfptr_set_param_double', self.library))
+        self._setUserDouble = self.SET_DOUBLE_METHOD(('libfptr_set_user_param_double', self.library))
         self._setNonPrintableDouble = self.SET_DOUBLE_METHOD(('libfptr_set_non_printable_param_double', self.library))
         self._getDouble = self.GET_DOUBLE_METHOD(('libfptr_get_param_double', self.library))
 
         self._setDateTime = self.SET_DATETIME_METHOD(('libfptr_set_param_datetime', self.library))
+        self._setUserDateTime = self.SET_DATETIME_METHOD(('libfptr_set_user_param_datetime', self.library))
         self._setNonPrintableDateTime = self.SET_DATETIME_METHOD(('libfptr_set_non_printable_param_datetime', self.library))
         self._getDateTime = self.GET_DATETIME_METHOD(('libfptr_get_param_datetime', self.library))
 
         self._setString = self.SET_STRING_METHOD(('libfptr_set_param_str', self.library))
+        self._setUserString = self.SET_STRING_METHOD(('libfptr_set_user_param_str', self.library))
         self._setNonPrintableString = self.SET_STRING_METHOD(('libfptr_set_non_printable_param_str', self.library))
         self._getString = self.GET_STRING_METHOD(('libfptr_get_param_str', self.library))
 
@@ -1231,6 +1247,29 @@ class IFptr(object):
                               param.time().hour, param.time().minute, param.time().second)
         elif isinstance(param, TEXT):
             self._setString(self.interface, ctypes.c_int(paramId), ctypes.c_wchar_p(param))
+        else:
+            raise TypeError("Invalid 'param' type {0}".format(type(param)))
+
+    def setUserParam(self, paramId, param):
+        if isinstance(param, int):
+            self._setUserInt(self.interface, ctypes.c_int(paramId), ctypes.c_uint(param))
+        elif isinstance(param, bool):
+            self._setUserBool(self.interface, ctypes.c_int(paramId), ctypes.c_int(param))
+        elif isinstance(param, float):
+            self._setUserDouble(self.interface, ctypes.c_int(paramId), ctypes.c_double(param))
+        elif isinstance(param, list):
+            self._setUserByteArray(self.interface, ctypes.c_int(paramId),
+                                   (ctypes.c_ubyte * len(param))(*param), len(param))
+        elif isinstance(param, bytearray):
+            self._setUserByteArray(self.interface, ctypes.c_int(paramId),
+                                   (ctypes.c_ubyte * len(param))(*param), len(param))
+        elif isinstance(param, datetime.datetime):
+            self._setUserDateTime(self.interface, ctypes.c_int(paramId), param.date().year,
+                                  param.date().month,
+                                  param.date().day,
+                                  param.time().hour, param.time().minute, param.time().second)
+        elif isinstance(param, TEXT):
+            self._setUserString(self.interface, ctypes.c_int(paramId), ctypes.c_wchar_p(param))
         else:
             raise TypeError("Invalid 'param' type {0}".format(type(param)))
 
@@ -1628,6 +1667,10 @@ class IFptr(object):
 
     def utilConvertTagValue(self):
         _method = self.METHOD(('libfptr_util_convert_tag_value', self.library))
+        return _method(self.interface)
+
+    def parseMarkingCode(self):
+        _method = self.METHOD(('libfptr_parse_marking_code', self.library))
         return _method(self.interface)
 
 
